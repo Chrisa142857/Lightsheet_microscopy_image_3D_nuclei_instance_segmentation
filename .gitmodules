@@ -1,0 +1,3 @@
+[submodule "train_unet/cellpose"]
+	path = train_unet/cellpose
+	url = https://github.com/MouseLand/cellpose
