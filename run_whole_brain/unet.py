@@ -1,21 +1,15 @@
-import os, sys, time, shutil, tempfile, datetime, pathlib, subprocess
+import os#, sys, time, shutil, tempfile, datetime, pathlib, subprocess
 from pathlib import Path
 import numpy as np
 from tqdm import trange, tqdm
 from urllib.parse import urlparse
 import torch
-import cv2
-# import logging
+from torch.utils.data import Dataset, DataLoader
+from datetime import datetime
 
-import io
-# models_logger = logging.getLogger(__name__)
-
-# from utils import , UnetModel
 import transforms
 import resnet
-import utils
-# from . import transforms, dynamics, utils, plot
-# from core import UnetModel, parse_model_string
+# import utils
 
 
 def parse_model_string(pretrained_model):
@@ -90,159 +84,6 @@ class UnetModel():
         if pretrained_model is not None and isinstance(pretrained_model, str):
             self.net.load_model(pretrained_model, cpu=(not self.gpu))
 
-    def eval(self, x, batch_size=8, channels=None, channels_last=False, invert=False, normalize=True,
-             rescale=None, do_3D=False, anisotropy=None, net_avg=False, augment=False,
-             channel_axis=None, z_axis=None, nolist=False,
-             tile=True, cell_threshold=None, boundary_threshold=None, min_size=15, 
-             compute_masks=True):
-        """ segment list of images x
-
-            Parameters
-            ----------
-            x: list or array of images
-                can be list of 2D/3D images, or array of 2D/3D images, or 4D image array
-
-            batch_size: int (optional, default 8)
-                number of 224x224 patches to run simultaneously on the GPU
-                (can make smaller or bigger depending on GPU memory usage)
-
-            channels: list (optional, default None)
-                list of channels, either of length 2 or of length number of images by 2.
-                First element of list is the channel to segment (0=grayscale, 1=red, 2=green, 3=blue).
-                Second element of list is the optional nuclear channel (0=none, 1=red, 2=green, 3=blue).
-                For instance, to segment grayscale images, input [0,0]. To segment images with cells
-                in green and nuclei in blue, input [2,3]. To segment one grayscale image and one
-                image with cells in green and nuclei in blue, input [[0,0], [2,3]].
-
-            channel_axis: int (optional, default None)
-                if None, channels dimension is attempted to be automatically determined
-
-            z_axis: int (optional, default None)
-                if None, z dimension is attempted to be automatically determined
-
-            invert: bool (optional, default False)
-                invert image pixel intensity before running network
-
-            normalize: bool (optional, default True)
-                normalize data so 0.0=1st percentile and 1.0=99th percentile of image intensities in each channel
-
-            rescale: float (optional, default None)
-                resize factor for each image, if None, set to 1.0
-
-            do_3D: bool (optional, default False)
-                set to True to run 3D segmentation on 4D image input
-
-            anisotropy: float (optional, default None)
-                for 3D segmentation, optional rescaling factor (e.g. set to 2.0 if Z is sampled half as dense as X or Y)
-
-            net_avg: bool (optional, default False)
-                runs the 4 built-in networks and averages them if True, runs one network if False
-
-            augment: bool (optional, default False)
-                tiles image with overlapping tiles and flips overlapped regions to augment
-
-            tile: bool (optional, default True)
-                tiles image to ensure GPU/CPU memory usage limited (recommended)
-
-            cell_threshold: float (optional, default 0.0)
-                cell probability threshold (all pixels with prob above threshold kept for masks)
-
-            boundary_threshold: float (optional, default 0.0)
-                cell probability threshold (all pixels with prob above threshold kept for masks)
-
-            min_size: int (optional, default 15)
-                minimum number of pixels per mask, can turn off with -1
-
-            Returns
-            -------
-            masks: list of 2D arrays, or single 3D array (if do_3D=True)
-                labelled image, where 0=no masks; 1,2,...=mask labels
-
-            flows: list of lists 2D arrays, or list of 3D arrays (if do_3D=True)
-                flows[k][0] = XY flow in HSV 0-255
-                flows[k][1] = flows at each pixel
-                flows[k][2] = the cell distance field
-                flows[k][3] = the cell boundary
-
-            styles: list of 1D arrays of length 64, or single 1D array (if do_3D=True)
-                style vector summarizing each image, also used to estimate size of objects in image
-
-        """        
-        x = [transforms.convert_image(xi, channels, channel_axis, z_axis, do_3D, 
-                                    normalize, invert, nchan=self.nchan) for xi in x]
-        nimg = len(x)
-        self.batch_size = batch_size
-
-        styles = []
-        flows = []
-        masks = []
-        if rescale is None:
-            rescale = np.ones(nimg)
-        elif isinstance(rescale, float):
-            rescale = rescale * np.ones(nimg)
-        # if nimg > 1:
-        #     iterator = trange(nimg, file=tqdm_out)
-        # else:
-        iterator = range(nimg)
-
-        if isinstance(self.pretrained_model, list):
-            model_path = self.pretrained_model[0]
-            if not net_avg:
-                self.net.load_model(self.pretrained_model[0])
-        else:
-            model_path = self.pretrained_model
-
-        if cell_threshold is None or boundary_threshold is None:
-            try:
-                thresholds = np.load(model_path+'_cell_boundary_threshold.npy')
-                cell_threshold, boundary_threshold = thresholds
-                # core_logger.info('>>>> found saved thresholds from validation set')
-            except:
-                # core_logger.warning('WARNING: no thresholds found, using default / user input')
-                pass
-
-        cell_threshold = 2.0 if cell_threshold is None else cell_threshold
-        boundary_threshold = 0.5 if boundary_threshold is None else boundary_threshold
-
-        if not do_3D:
-            for i in iterator:
-                img = x[i].copy()
-                shape = img.shape
-                # rescale image for flow computation
-                img = transforms.resize_image(img, rsz=rescale[i])
-                y, style = self._run_nets(img, net_avg=net_avg, augment=augment, 
-                                          tile=tile)
-                if compute_masks:
-                    maski = utils.get_masks_unet(y, cell_threshold, boundary_threshold)
-                    maski = utils.fill_holes_and_remove_small_masks(maski, min_size=min_size)
-                    maski = transforms.resize_image(maski, shape[-3], shape[-2], 
-                                                        interpolation=cv2.INTER_NEAREST)
-                else:
-                    maski = None
-                masks.append(maski)
-                styles.append(style)
-        else:
-            for i in iterator:
-                tic=time.time()
-                yf, style = self._run_3D(x[i], rsz=rescale[i], anisotropy=anisotropy, 
-                                         net_avg=net_avg, augment=augment, tile=tile)
-                yf = yf.mean(axis=0)
-                # core_logger.info('probabilities computed %2.2fs'%(time.time()-tic))
-                if compute_masks:
-                    maski = utils.get_masks_unet(yf.transpose((1,2,3,0)), cell_threshold, boundary_threshold)
-                    maski = utils.fill_holes_and_remove_small_masks(maski, min_size=min_size)
-                else:
-                    maski = None
-                masks.append(maski)
-                styles.append(style)
-                # core_logger.info('masks computed %2.2fs'%(time.time()-tic))
-                flows.append(yf)
-
-        if nolist:
-            masks, flows, styles = masks[0], flows[0], styles[0]
-        
-        return masks, flows, styles
-
     def _to_device(self, x):
         X = torch.from_numpy(x).float().to(self.device)
         return X
@@ -253,7 +94,8 @@ class UnetModel():
 
     def network(self, x, return_conv=False):
         """ convert imgs to torch and run network model and return numpy """
-        X = self._to_device(x)
+        # X = self._to_device(x)
+        X  = x.float().to(self.device)
         self.net.eval()
         # if self.mkldnn:
         #     self.net = mkldnn_utils.to_mkldnn(self.net)
@@ -268,7 +110,8 @@ class UnetModel():
         
         return y, style
                 
-    def _run_nets(self, img, net_avg=False, augment=False, tile=True, tile_overlap=0.1, bsize=224, 
+
+    def _run_nets(self, img, net_avg=False, tile=True, tile_overlap=0.1, bsize=224, 
                   return_conv=False, progress=None):
         """ run network (if more than one, loop over networks and average results
 
@@ -279,9 +122,6 @@ class UnetModel():
 
         net_avg: bool (optional, default False)
             runs the 4 built-in networks and averages them if True, runs one network if False
-
-        augment: bool (optional, default False)
-            tiles image with overlapping tiles and flips overlapped regions to augment
 
         tile: bool (optional, default True)
             tiles image to ensure GPU memory usage limited (recommended)
@@ -306,12 +146,12 @@ class UnetModel():
 
         """
         if isinstance(self.pretrained_model, str) or not net_avg:  
-            y, style = self._run_net(img, augment=augment, tile=tile, tile_overlap=tile_overlap,
+            y, style = self._run_net(img, tile=tile, tile_overlap=tile_overlap,
                                      bsize=bsize, return_conv=return_conv)
         else:  
             for j in range(len(self.pretrained_model)):
                 self.net.load_model(self.pretrained_model[j], cpu=(not self.gpu))
-                y0, style = self._run_net(img, augment=augment, tile=tile, 
+                y0, style = self._run_net(img, tile=tile, 
                                           tile_overlap=tile_overlap, bsize=bsize,
                                           return_conv=return_conv)
 
@@ -325,11 +165,10 @@ class UnetModel():
             
         return y, style
 
-    def _run_net(self, imgs, augment=False, tile=True, tile_overlap=0.1, bsize=224,
+
+    def _run_net(self, imgs, tile=True, tile_overlap=0.1, bsize=224,
                  return_conv=False):
         """ run network on image or stack of images
-
-        (faster if augment is False)
 
         Parameters
         --------------
@@ -338,9 +177,6 @@ class UnetModel():
 
         rsz: float (optional, default 1.0)
             resize coefficient(s) for image
-
-        augment: bool (optional, default False)
-            tiles image with overlapping tiles and flips overlapped regions to augment
 
         tile: bool (optional, default True)
             tiles image to ensure GPU/CPU memory usage limited (recommended);
@@ -363,18 +199,14 @@ class UnetModel():
             if tiled it is averaged over tiles
 
         """   
-        if imgs.ndim==4:  
-            # make image Lz x nchan x Ly x Lx for net
-            imgs = np.transpose(imgs, (0,3,1,2)) 
-            detranspose = (0,2,3,1)
-            return_conv = False
-        else:
-            # make image nchan x Ly x Lx for net
-            imgs = np.transpose(imgs, (2,0,1))
-            detranspose = (1,2,0)
-
+        # make image nchan x Ly x Lx for net
+        imgs = np.transpose(imgs, (2,0,1))
+        detranspose = (1,2,0)
+        
+        print(datetime.now(), f"Pad img")
         # pad image for net so Ly and Lx are divisible by 4
         imgs, ysub, xsub = transforms.pad_image_ND(imgs)
+        print(datetime.now(), f"Done")
         # slices from padding
 #         slc = [slice(0, self.nclasses) for n in range(imgs.ndim)] # changed from imgs.shape[n]+1 for first slice size 
         slc = [slice(0, imgs.shape[n]+1) for n in range(imgs.ndim)]
@@ -384,15 +216,16 @@ class UnetModel():
         slc = tuple(slc)
 
         # run network
-        if tile or augment or imgs.ndim==4:
-            y, style = self._run_tiled(imgs, augment=augment, bsize=bsize, 
+        if tile or imgs.ndim==4:
+            y, style = self._run_tiled(imgs, bsize=bsize, 
                                       tile_overlap=tile_overlap, 
                                       return_conv=return_conv)
         else:
             imgs = np.expand_dims(imgs, axis=0)
             y, style = self.network(imgs, return_conv=return_conv)
             y, style = y[0], style[0]
-        style /= (style**2).sum()**0.5
+        if style is not None:
+            style /= (style**2).sum()**0.5
 
         # slice out padding
         y = y[slc]
@@ -401,20 +234,16 @@ class UnetModel():
         
         return y, style
     
-    def _run_tiled(self, imgi, augment=False, bsize=224, tile_overlap=0.1, return_conv=False):
+    def _run_tiled(self, imgi, bsize=224, tile_overlap=0.1, return_conv=False):
         """ run network in tiles of size [bsize x bsize]
 
         First image is split into overlapping tiles of size [bsize x bsize].
-        If augment, tiles have 50% overlap and are flipped at overlaps.
         The average of the network output over tiles is returned.
 
         Parameters
         --------------
 
         imgi: array [nchan x Ly x Lx] or [Lz x nchan x Ly x Lx]
-
-        augment: bool (optional, default False)
-            tiles image with overlapping tiles and flips overlapped regions to augment
 
         bsize: int (optional, default 224)
             size of tiles to use in pixels [bsize x bsize]
@@ -433,167 +262,152 @@ class UnetModel():
             1D array summarizing the style of the image, averaged over tiles
 
         """
-        IMG, ysub, xsub, Ly, Lx = transforms.make_tiles(imgi, bsize=bsize, 
-                                                        augment=augment, tile_overlap=tile_overlap)
-        tile_mask = self.mask_tile(torch.LongTensor(ysub), torch.LongTensor(xsub), imgi.shape)
-        batches = torch.where(tile_mask)[0].numpy()
-        ny, nx, nchan, ly, lx = IMG.shape
-        IMG = np.reshape(IMG, (ny*nx, nchan, ly, lx))
+        # IMG, ysub, xsub, Ly, Lx = transforms.make_tiles(imgi, bsize=bsize, 
+        #                                                 tile_overlap=tile_overlap)
+        print(datetime.now(), f"Tile img")
+        ysub, xsub, Ly, Lx, IMGshape = make_tiles(imgi, bsize=bsize, tile_overlap=tile_overlap)
+        ysub, xsub = torch.LongTensor(ysub), torch.LongTensor(xsub)
+        tile_mask = self.mask_tile(ysub, xsub, imgi.shape)
+        batches = torch.where(tile_mask)[0]#.numpy()
+        ny, nx, nchan, ly, lx = IMGshape
+        dset = TiledImage(imgi, ysub, xsub)
+        # IMG = np.reshape(IMG, (ny*nx, nchan, ly, lx))
         batch_size = self.batch_size
-        niter = int(np.ceil(batches.shape[0] / batch_size))
+        dloader = DataLoader(dset, batch_size=batch_size, sampler=batches, num_workers=16)
+        # niter = int(np.ceil(batches.shape[0] / batch_size))
         nout = self.nclasses + 32*return_conv
-        y = np.zeros((IMG.shape[0], nout, ly, lx))
-        for k in range(niter):
+        y = np.zeros((ny*nx, nout, ly, lx))
+        # for k in range(niter):
+        print(datetime.now(), f"Loop tiles")
+        for k, img in enumerate(dloader):
             # irange = np.arange(batch_size*k, min(IMG.shape[0], batch_size*k+batch_size))
             irange = batches[batch_size*k: min(batches.shape[0], batch_size*k+batch_size)]
-            y0, style = self.network(IMG[irange], return_conv=return_conv)
+            # y0, style = self.network(IMG[irange], return_conv=return_conv)
+            y0, style = self.network(img, return_conv=return_conv)
             y[irange] = y0.reshape(len(irange), y0.shape[-3], y0.shape[-2], y0.shape[-1])
-            if k==0:
-                styles = style[0]
-            styles += style.sum(axis=0)
-        styles /= IMG.shape[0]
-        if augment:
-            y = np.reshape(y, (ny, nx, nout, bsize, bsize))
-            y = transforms.unaugment_tiles(y, self.unet)
-            y = np.reshape(y, (-1, nout, bsize, bsize))
+        #     if k==0:
+        #         styles = style[0]
+        #     styles += style.sum(axis=0)
+        # styles /= (ny*nx)
         
-        yf = transforms.average_tiles(y, ysub, xsub, Ly, Lx)
+        print(datetime.now(), f"Avg tiles")
+        # yf = transforms.average_tiles(y, ysub, xsub, Ly, Lx)
+        yf = average_tiles(torch.from_numpy(y), ysub, xsub, Ly, Lx).numpy()
         yf = yf[:,:imgi.shape[1],:imgi.shape[2]]
-        styles /= (styles**2).sum()**0.5
-        return yf, styles
-
-    def _run_3D(self, imgs, rsz=1.0, anisotropy=None, net_avg=False, 
-                augment=False, tile=True, tile_overlap=0.1, 
-                bsize=224, progress=None):
-        """ run network on stack of images
-
-        (faster if augment is False)
-
-        Parameters
-        --------------
-
-        imgs: array [Lz x Ly x Lx x nchan]
-
-        rsz: float (optional, default 1.0)
-            resize coefficient(s) for image
-
-        anisotropy: float (optional, default None)
-                for 3D segmentation, optional rescaling factor (e.g. set to 2.0 if Z is sampled half as dense as X or Y)
-
-        net_avg: bool (optional, default False)
-            runs the 4 built-in networks and averages them if True, runs one network if False
-
-        augment: bool (optional, default False)
-            tiles image with overlapping tiles and flips overlapped regions to augment
-
-        tile: bool (optional, default True)
-            tiles image to ensure GPU/CPU memory usage limited (recommended);
-            cannot be turned off for 3D segmentation
-
-        tile_overlap: float (optional, default 0.1)
-            fraction of overlap of tiles when computing flows
-
-        bsize: int (optional, default 224)
-            size of tiles to use in pixels [bsize x bsize]
-
-        progress: pyqt progress bar (optional, default None)
-            to return progress bar status to GUI
+        print(datetime.now(), f"Done")
+        # styles /= (styles**2).sum()**0.5
+        return yf, None#, styles
 
 
-        Returns
-        ------------------
+class TiledImage(Dataset):
+    def __init__(self, imgi, ysub, xsub):
+        self.imgi = imgi
+        self.ysub = ysub
+        self.xsub = xsub
 
-        yf: array [Lz x Ly x Lx x 3]
-            y[...,0] is Y flow; y[...,1] is X flow; y[...,2] is cell probability
+    def __getitem__(self, idx):
+        ys, ye = self.ysub[idx]
+        xs, xe = self.xsub[idx]
+        return self.imgi[:, ys:ye,  xs:xe]
 
-        style: array [64]
-            1D array summarizing the style of the image,
-            if tiled it is averaged over tiles
+    def __len__(self):
+        return len(self.data)
+    
 
-        """ 
-        sstr = ['YX', 'ZY', 'ZX']
-        if anisotropy is not None:
-            rescaling = [[rsz, rsz],
-                         [rsz*anisotropy, rsz],
-                         [rsz*anisotropy, rsz]]
-        else:
-            rescaling = [rsz] * 3
-        pm = [(0,1,2,3), (1,0,2,3), (2,0,1,3)]
-        ipm = [(3,0,1,2), (3,1,0,2), (3,1,2,0)]
-        yf = np.zeros((3, self.nclasses, imgs.shape[0], imgs.shape[1], imgs.shape[2]), np.float32)
-        for p in range(3 - 2*self.unet):
-            xsl = imgs.copy().transpose(pm[p])
-            # rescale image for flow computation
-            shape = xsl.shape
-            xsl = transforms.resize_image(xsl, rsz=rescaling[p])  
-            # per image
-            # core_logger.info('running %s: %d planes of size (%d, %d)'%(sstr[p], shape[0], shape[1], shape[2]))
-            y, style = self._run_nets(xsl, net_avg=net_avg, augment=augment, tile=tile, 
-                                      bsize=bsize, tile_overlap=tile_overlap)
-            y = transforms.resize_image(y, shape[1], shape[2])    
-            yf[p] = y.transpose(ipm[p])
-            if progress is not None:
-                progress.setValue(25+15*p)
-        return yf, style
+def make_tiles(imgi, bsize, tile_overlap):
+    nchan, Ly, Lx = imgi.shape
+    tile_overlap = min(0.5, max(0.05, tile_overlap))
+    bsizeY, bsizeX = min(bsize, Ly), min(bsize, Lx)
+    bsizeY = np.int32(bsizeY)
+    bsizeX = np.int32(bsizeX)
+    # tiles overlap by 10% tile size
+    ny = 1 if Ly<=bsize else int(np.ceil((1.+2*tile_overlap) * Ly / bsize))
+    nx = 1 if Lx<=bsize else int(np.ceil((1.+2*tile_overlap) * Lx / bsize))
+    ystart = np.linspace(0, Ly-bsizeY, ny).astype(int)
+    xstart = np.linspace(0, Lx-bsizeX, nx).astype(int)
 
-    def _test_eval(self, x, lbl):
-        X = self._to_device(x)
-        self.net.eval()
-        with torch.no_grad():
-            y, style = self.net(X)
-            del X
-            loss = self.loss_fn(lbl,y)
-            test_loss = loss.item()
-            test_loss *= len(x)
-        return test_loss
+    ysub = []
+    xsub = []
+    # IMG = np.zeros((len(ystart), len(xstart), nchan,  bsizeY, bsizeX), np.float32)
+    for j in range(len(ystart)):
+        for i in range(len(xstart)):
+            ysub.append([ystart[j], ystart[j]+bsizeY])
+            xsub.append([xstart[i], xstart[i]+bsizeX])
+            # IMG[j, i] = imgi[:, ysub[-1][0]:ysub[-1][1],  xsub[-1][0]:xsub[-1][1]]
+    return ysub, xsub, Ly, Lx, (len(ystart), len(xstart), nchan,  bsizeY, bsizeX)
+    
+def average_tiles(y, ysub, xsub, Ly, Lx):
+    Navg = torch.zeros((Ly,Lx))
+    yf = torch.zeros((y.shape[1], Ly, Lx)).float()
+    # taper edges of tiles
+    mask = _taper_mask(ly=y.shape[-2], lx=y.shape[-1])
+    for j in range(len(ysub)):
+        yf[:, ysub[j][0]:ysub[j][1],  xsub[j][0]:xsub[j][1]] += y[j] * mask
+        Navg[ysub[j][0]:ysub[j][1],  xsub[j][0]:xsub[j][1]] += mask
+    yf /= Navg
+    return yf
+
+def _taper_mask(ly=224, lx=224, sig=7.5):
+    bsize = max(224, max(ly, lx))
+    xm = torch.arange(bsize).float()
+    xm = torch.abs(xm - xm.mean())
+    mask = 1/(1 + torch.exp((xm - (bsize/2-20)) / sig))
+    mask = mask * mask.unsqueeze(1)
+    mask = mask[bsize//2-ly//2 : bsize//2+ly//2+ly%2, 
+                bsize//2-lx//2 : bsize//2+lx//2+lx%2]
+    return mask
 
 
+def normalize_img(img, axis=-1, invert=False):
+    """ normalize each channel of the image so that so that 0.0=1st percentile
+    and 1.0=99th percentile of image intensities
 
-class NISModel(UnetModel):
-    """
+    optional inversion
 
     Parameters
-    -------------------
+    ------------
 
-    gpu: bool (optional, default False)
-        whether or not to save model to GPU, will check if GPU available
-        
-    pretrained_model: str or list of strings (optional, default False)
-        full path to pretrained cellpose model(s), if None or False, no model loaded
-        
-    model_type: str (optional, default None)
-        any model that is available in the GUI, use name in GUI e.g. 'livecell' 
-        (can be user-trained or model zoo)
-        
-    net_avg: bool (optional, default False)
-        loads the 4 built-in networks and averages them if True, loads one network if False
-        
-    diam_mean: float (optional, default 30.)
-        mean 'diameter', 30. is built in value for 'cyto' model; 17. is built in value for 'nuclei' model; 
-        if saved in custom model file (cellpose>=2.0) then it will be loaded automatically and overwrite this value
-        
-    device: torch device (optional, default None)
-        device used for model running / training 
-        (torch.device('cuda') or torch.device('cpu')), overrides gpu input,
-        recommended if you want to use a specific GPU (e.g. torch.device('cuda:1'))
+    img: ND-array (at least 3 dimensions)
 
-    residual_on: bool (optional, default True)
-        use 4 conv blocks with skip connections per layer instead of 2 conv blocks
-        like conventional u-nets
+    axis: channel axis to loop over for normalization
 
-    style_on: bool (optional, default True)
-        use skip connections from style vector to all upsampling layers
+    invert: invert image (useful if cells are dark instead of bright)
 
-    concatenation: bool (optional, default False)
-        if True, concatentate downsampling block outputs with upsampling block inputs; 
-        default is to add 
-    
-    nchan: int (optional, default 2)
-        number of channels to use as input to network, default is 2 
-        (cyto + nuclei) or (nuclei + zeros)
-    
+    Returns
+    ---------------
+
+    img: ND-array, float32
+        normalized image of same size
+
     """
-    
+    if img.ndim<3:
+        error_message = 'Image needs to have at least 3 dimensions'
+        # transforms_logger.critical(error_message)
+        raise ValueError(error_message)
+
+    img = img.float()
+    img = torch.moveaxis(img, axis, 0)
+    for k in range(img.shape[0]):
+        # ptp can still give nan's with weird images
+        i99 = percentile(img[k], 99)
+        i1 = percentile(img[k], 1)
+        if i99 - i1 > +1e-3: #np.ptp(img[k]) > 1e-3:
+            img[k] = (img[k] - i1) / (i99 - i1)
+            if invert:
+                img[k] = -1*img[k] + 1   
+        else:
+            img[k] = 0
+    img = torch.moveaxis(img, 0, axis)
+    return img
+
+def percentile(tensor, q):
+    flattened = tensor.cuda().flatten()
+    k = int((q / 100.0) * flattened.numel())
+    sorted_tensor, _ = torch.sort(flattened)
+    percentile_value = sorted_tensor[k-1]#.float()
+    return percentile_value.cpu()
+
+class NISModel(UnetModel):    
     def __init__(self, gpu=False, pretrained_model=False, 
                     net_avg=False,
                     diam_mean=30., device=None,
@@ -637,8 +451,7 @@ class NISModel(UnetModel):
     
     def get_prob(self, x, batch_size=8, channels=None, channel_axis=None, 
              z_axis=None, normalize=True, invert=False, 
-             rescale=None, diameter=None, net_avg=False, 
-             augment=False, tile=True, tile_overlap=0.1,
+             rescale=None, diameter=None, net_avg=False, tile=True, tile_overlap=0.1,
              resample=True, loop_run=False, model_loaded=False):
 
         
@@ -663,7 +476,6 @@ class NISModel(UnetModel):
                         rescale=rescale, 
                         net_avg=net_avg, 
                         resample=resample,
-                        augment=augment, 
                         tile=tile, 
                         tile_overlap=tile_overlap,
                         )
@@ -672,67 +484,26 @@ class NISModel(UnetModel):
         return p
 
     def _run_cp(self, x, normalize=True, invert=False,
-                rescale=1.0, net_avg=False, resample=True,
-                augment=False, tile=True, tile_overlap=0.1,
+                rescale=1.0, net_avg=False, resample=True, tile=True, tile_overlap=0.1,
                 ):
-        
-        tic = time.time()
         shape = x.shape if not isinstance(x[0], str) else []
-        nimg = shape[0] if not isinstance(x[0], str) else len(x)
-        
+        print(datetime.now(), f"x.shape={shape}")
         img = np.asarray(x[0])
         if normalize or invert:
-            img = transforms.normalize_img(img, invert=invert)
+            print(datetime.now(), f"Normalize img")
+            img = normalize_img(torch.from_numpy(img), invert=invert).numpy()
+            print(datetime.now(), f"Done")
+            
         if rescale != 1.0:
+            print(datetime.now(), f"Resize img")
             img = transforms.resize_image(img, rsz=rescale)
-        yf, style = self._run_nets(img, net_avg=net_avg,
-                                    augment=augment, tile=tile,
+            print(datetime.now(), f"Done")
+
+        yf, style = self._run_nets(img, net_avg=net_avg, tile=tile,
                                     tile_overlap=tile_overlap)
         if resample:
+            print(datetime.now(), f"Resize output")
             yf = transforms.resize_image(yf, shape[1], shape[2])
+            print(datetime.now(), f"Done")
         return yf
-        # styles = styles.squeeze()
-        # # exit()
-        
-        # net_time = time.time() - tic
-        # if nimg > 1:
-        #     models_logger.info('network run in %2.2fs'%(net_time))
-
-        # if compute_masks:
-        #     tic=time.time()
-        #     niter = 200 if (do_3D and not resample) else (1 / rescale * 200)
-        #     if do_3D:
-        #         masks, p = dynamics.compute_masks(dP, cellprob, niter=niter, 
-        #                                               cellprob_threshold=cellprob_threshold,
-        #                                               flow_threshold=flow_threshold,
-        #                                               interp=interp, do_3D=do_3D, min_size=min_size,
-        #                                               resize=None,
-        #                                               use_gpu=self.gpu, device=self.device
-        #                                             )
-        #     else:
-        #         masks, p = [], []
-        #         resize = [shape[1], shape[2]] if not resample else None
-        #         for i in iterator:
-        #             outputs = dynamics.compute_masks(dP[:,i], cellprob[i], niter=niter, cellprob_threshold=cellprob_threshold,
-        #                                                  flow_threshold=flow_threshold, interp=interp, resize=resize,
-        #                                                  use_gpu=self.gpu, device=self.device)
-        #             masks.append(outputs[0])
-        #             p.append(outputs[1])
-                    
-        #         masks = np.array(masks)
-        #         p = np.array(p)
-                
-        #         if stitch_threshold > 0 and nimg > 1:
-        #             models_logger.info(f'stitching {nimg} planes using stitch_threshold={stitch_threshold:0.3f} to make 3D masks')
-        #             np.savez_compressed('temp/%s' % filename.replace('.tif', '.npz'), mask=masks.squeeze())
-        #             masks = utils.stitch3D(masks, stitch_threshold=stitch_threshold)
-            
-        #     flow_time = time.time() - tic
-        #     if nimg > 1:
-        #         models_logger.info('masks created in %2.2fs'%(flow_time))
-        #     masks, dP, cellprob, p = masks.squeeze(), dP.squeeze(), cellprob.squeeze(), p.squeeze()
-            
-        # else:
-        #     masks, p = np.zeros(0), np.zeros(0)  #pass back zeros if not compute_masks
-        # return masks, styles, dP, cellprob, p
 
