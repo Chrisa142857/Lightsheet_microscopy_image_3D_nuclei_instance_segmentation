@@ -6,6 +6,12 @@ __pycache__/
 # C extensions
 *.so
 
+# nohup
+*.out
+
+# NFS
+.nfs*
+
 # Distribution / packaging
 .Python
 build/
