@@ -433,76 +433,34 @@ class UnetModel():
             1D array summarizing the style of the image, averaged over tiles
 
         """
-        if imgi.ndim==4:
-            batch_size = self.batch_size 
-            Lz, nchan = imgi.shape[:2]
-            IMG, ysub, xsub, Ly, Lx = transforms.make_tiles(imgi[0], bsize=bsize, 
-                                                            augment=augment, tile_overlap=tile_overlap)
-            ny, nx, nchan, ly, lx = IMG.shape
-            batch_size *= max(4, (bsize**2 // (ly*lx))**0.5)
-            yf = np.zeros((Lz, self.nclasses, imgi.shape[-2], imgi.shape[-1]), np.float32)
-            styles = []
-            if ny*nx > batch_size:
-                # ziterator = trange(Lz, file=tqdm_out)
-                ziterator = range(Lz)
-                for i in ziterator:
-                    yfi, stylei = self._run_tiled(imgi[i], augment=augment, 
-                                                  bsize=bsize, tile_overlap=tile_overlap)
-                    yf[i] = yfi
-                    styles.append(stylei)
-            else:
-                # run multiple slices at the same time
-                ntiles = ny*nx
-                nimgs = max(2, int(np.round(batch_size / ntiles)))
-                niter = int(np.ceil(Lz/nimgs))
-                # ziterator = trange(niter, file=tqdm_out)
-                ziterator = range(niter)
-                for k in ziterator:
-                    IMGa = np.zeros((ntiles*nimgs, nchan, ly, lx), np.float32)
-                    for i in range(min(Lz-k*nimgs, nimgs)):
-                        IMG, ysub, xsub, Ly, Lx = transforms.make_tiles(imgi[k*nimgs+i], bsize=bsize, 
-                                                                        augment=augment, tile_overlap=tile_overlap)
-                        IMGa[i*ntiles:(i+1)*ntiles] = np.reshape(IMG, (ny*nx, nchan, ly, lx))
-                    ya, stylea = self.network(IMGa)
-                    for i in range(min(Lz-k*nimgs, nimgs)):
-                        y = ya[i*ntiles:(i+1)*ntiles]
-                        if augment:
-                            y = np.reshape(y, (ny, nx, 3, ly, lx))
-                            y = transforms.unaugment_tiles(y, self.unet)
-                            y = np.reshape(y, (-1, 3, ly, lx))
-                        yfi = transforms.average_tiles(y, ysub, xsub, Ly, Lx)
-                        yfi = yfi[:,:imgi.shape[2],:imgi.shape[3]]
-                        yf[k*nimgs+i] = yfi
-                        stylei = stylea[i*ntiles:(i+1)*ntiles].sum(axis=0)
-                        stylei /= (stylei**2).sum()**0.5
-                        styles.append(stylei)
-            return yf, np.array(styles)
-        else:
-            IMG, ysub, xsub, Ly, Lx = transforms.make_tiles(imgi, bsize=bsize, 
-                                                            augment=augment, tile_overlap=tile_overlap)
-            ny, nx, nchan, ly, lx = IMG.shape
-            IMG = np.reshape(IMG, (ny*nx, nchan, ly, lx))
-            batch_size = self.batch_size
-            niter = int(np.ceil(IMG.shape[0] / batch_size))
-            nout = self.nclasses + 32*return_conv
-            y = np.zeros((IMG.shape[0], nout, ly, lx))
-            for k in range(niter):
-                irange = np.arange(batch_size*k, min(IMG.shape[0], batch_size*k+batch_size))
-                y0, style = self.network(IMG[irange], return_conv=return_conv)
-                y[irange] = y0.reshape(len(irange), y0.shape[-3], y0.shape[-2], y0.shape[-1])
-                if k==0:
-                    styles = style[0]
-                styles += style.sum(axis=0)
-            styles /= IMG.shape[0]
-            if augment:
-                y = np.reshape(y, (ny, nx, nout, bsize, bsize))
-                y = transforms.unaugment_tiles(y, self.unet)
-                y = np.reshape(y, (-1, nout, bsize, bsize))
-            
-            yf = transforms.average_tiles(y, ysub, xsub, Ly, Lx)
-            yf = yf[:,:imgi.shape[1],:imgi.shape[2]]
-            styles /= (styles**2).sum()**0.5
-            return yf, styles
+        IMG, ysub, xsub, Ly, Lx = transforms.make_tiles(imgi, bsize=bsize, 
+                                                        augment=augment, tile_overlap=tile_overlap)
+        tile_mask = self.mask_tile(torch.LongTensor(ysub), torch.LongTensor(xsub), imgi.shape)
+        batches = torch.where(tile_mask)[0].numpy()
+        ny, nx, nchan, ly, lx = IMG.shape
+        IMG = np.reshape(IMG, (ny*nx, nchan, ly, lx))
+        batch_size = self.batch_size
+        niter = int(np.ceil(batches.shape[0] / batch_size))
+        nout = self.nclasses + 32*return_conv
+        y = np.zeros((IMG.shape[0], nout, ly, lx))
+        for k in range(niter):
+            # irange = np.arange(batch_size*k, min(IMG.shape[0], batch_size*k+batch_size))
+            irange = batches[batch_size*k: min(batches.shape[0], batch_size*k+batch_size)]
+            y0, style = self.network(IMG[irange], return_conv=return_conv)
+            y[irange] = y0.reshape(len(irange), y0.shape[-3], y0.shape[-2], y0.shape[-1])
+            if k==0:
+                styles = style[0]
+            styles += style.sum(axis=0)
+        styles /= IMG.shape[0]
+        if augment:
+            y = np.reshape(y, (ny, nx, nout, bsize, bsize))
+            y = transforms.unaugment_tiles(y, self.unet)
+            y = np.reshape(y, (-1, nout, bsize, bsize))
+        
+        yf = transforms.average_tiles(y, ysub, xsub, Ly, Lx)
+        yf = yf[:,:imgi.shape[1],:imgi.shape[2]]
+        styles /= (styles**2).sum()**0.5
+        return yf, styles
 
     def _run_3D(self, imgs, rsz=1.0, anisotropy=None, net_avg=False, 
                 augment=False, tile=True, tile_overlap=0.1, 
