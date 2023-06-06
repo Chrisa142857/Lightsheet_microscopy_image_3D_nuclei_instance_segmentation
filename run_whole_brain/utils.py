@@ -1,16 +1,84 @@
-# import os, warnings, time, tempfile, datetime, pathlib, shutil, subprocess
+import os
+from typing import Any#, warnings, time, tempfile, datetime, pathlib, shutil, subprocess
 # from tqdm import tqdm
 # from urllib.request import urlopen
 # from urllib.parse import urlparse
-# import cv2
+import cv2
 from scipy.ndimage import find_objects, gaussian_filter, generate_binary_structure, label, maximum_filter1d, binary_fill_holes
 # from scipy.spatial import ConvexHull
 # # from scipy.stats import gmean
 import numpy as np
 # import colorsys
 # import io
-
+import tifffile
+import nibabel as nib
+from tqdm import tqdm
+import torch
 # from . import metrics
+
+class MaskTiledImg:
+    def __init__(self, 
+            maskn='/lichtman/Felix/Lightsheet/P4/pair15/output_L73D766P4/registered/L73D766P4_MASK_topro_25_all.nii',
+            mask_zres=25,
+            img_zres=2.5,
+        ):
+        self.mask = torch.from_numpy(np.transpose(nib.load(maskn).get_fdata(), (2, 0, 1))[:, :, ::-1].copy())
+        self.zratio = mask_zres / img_zres
+
+    def __call__(self, y, x, shape):
+        ratio = [d/w for d, w in zip(self.mask.shape[1:], shape[1:])]
+        z = int(self.z/self.zratio)
+        mask = self.mask[z]
+        cy = (y[:, 0] + y[:, 1])/2
+        cx = (x[:, 0] + x[:, 1])/2
+        cy = (cy * ratio[0]).long()
+        cx = (cx * ratio[1]).long()
+        return mask[cy, cx] > 0
+
+def imread(filename):
+    """ read in image with tif or image file type supported by cv2 """
+    # ensure that extension check is not case sensitive
+    ext = os.path.splitext(filename)[-1].lower()
+    if ext== '.tif' or ext=='.tiff':
+        with tifffile.TiffFile(filename) as tif:
+            ltif = len(tif.pages)
+            try:
+                full_shape = tif.shaped_metadata[0]['shape']
+            except:
+                try:
+                    page = tif.series[0][0]
+                    full_shape = tif.series[0].shape
+                except:
+                    ltif = 0
+            if ltif < 10:
+                img = tif.asarray()
+            else:
+                page = tif.series[0][0]
+                shape, dtype = page.shape, page.dtype
+                ltif = int(np.prod(full_shape) / np.prod(shape))
+                # io_logger.info(f'reading tiff with {ltif} planes')
+                img = np.zeros((ltif, *shape), dtype=dtype)
+                for i,page in enumerate(tqdm(tif.series[0])):
+                    img[i] = page.asarray()
+                img = img.reshape(full_shape)            
+        return img
+    elif ext != '.npy':
+        try:
+            img = cv2.imread(filename, -1)#cv2.LOAD_IMAGE_ANYDEPTH)
+            if img.ndim > 2:
+                img = img[..., [2,1,0]]
+            return img
+        except Exception as e:
+            # io_logger.critical('ERROR: could not read file, %s'%e)
+            return None
+    else:
+        try:
+            dat = np.load(filename, allow_pickle=True).item()
+            masks = dat['masks']
+            return masks
+        except Exception as e:
+            # io_logger.critical('ERROR: could not read masks from file, %s'%e)
+            return None
 
 # try:
 #     from skimage.morphology import remove_small_holes
