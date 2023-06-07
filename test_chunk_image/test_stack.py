@@ -55,8 +55,8 @@ def main_cellpose2D_cosine_sim(_r, gt_r=None, save_tag='Carolyn_P15'):
     if gt_r is None: gt_r = _r
     eval_device = 0
     tag = 'cellpose2D_cosine_sim'
-    save_r = 'results_%s/%s' % (save_tag, tag)
-    os.makedirs(save_r, exist_ok=True)
+    # save_r = 'results_%s/%s' % (save_tag, tag)
+    # os.makedirs(save_r, exist_ok=True)
     # if '4' in save_tag:
     #     trained_model = 'cellpose/models/cellpose_residual_on_style_on_concatenation_off_train_2023_02_28_09_28_46.761192_epoch_41'
     # else:
