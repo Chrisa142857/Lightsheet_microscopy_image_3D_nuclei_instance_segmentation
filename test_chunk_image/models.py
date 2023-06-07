@@ -652,7 +652,11 @@ class CellposeModel(UnetModel):
                 print(YX_flow.shape)
                 grad_Z = simulate_gradz(YX_flow.shape[1], YX_flow, inside)
                 dP = np.stack((grad_Z, YX_flow[0], YX_flow[1]), axis=0) # (dZ, dY, dX)
+                # print(dP.shape)
+                # dP = torch.nn.functional.interpolate(torch.from_numpy(dP).unsqueeze(0), scale_factor=(4/2.5, 1, 1), mode='nearest-exact').squeeze().numpy()
+                # print(dP.shape)
                 # dP = np.stack((grad_Z, yf[0][0], yf[0][1]), axis=0) # (dZ, dY, dX)
+                # dP = simulate_gradz(YX_flow.shape[1], YX_flow, inside)
             del yf
         else:
             if isinstance(x[0], str):

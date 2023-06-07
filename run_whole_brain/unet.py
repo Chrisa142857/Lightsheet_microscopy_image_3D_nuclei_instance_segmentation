@@ -4,7 +4,7 @@ import numpy as np
 from tqdm import trange, tqdm
 from urllib.parse import urlparse
 import torch
-from torch.utils.data import Dataset, DataLoader
+from torch.utils.data import Dataset, DataLoader, Subset
 from datetime import datetime
 
 import transforms
@@ -268,12 +268,13 @@ class UnetModel():
         ysub, xsub, Ly, Lx, IMGshape = make_tiles(imgi, bsize=bsize, tile_overlap=tile_overlap)
         ysub, xsub = torch.LongTensor(ysub), torch.LongTensor(xsub)
         tile_mask = self.mask_tile(ysub, xsub, imgi.shape)
-        batches = torch.where(tile_mask)[0]#.numpy()
+        batches = torch.where(tile_mask)[0].numpy()
         ny, nx, nchan, ly, lx = IMGshape
         dset = TiledImage(imgi, ysub, xsub)
+        dset = Subset(dset, batches)
         # IMG = np.reshape(IMG, (ny*nx, nchan, ly, lx))
         batch_size = self.batch_size
-        dloader = DataLoader(dset, batch_size=batch_size, sampler=batches, num_workers=16)
+        dloader = DataLoader(dset, batch_size=batch_size, shuffle=False, num_workers=16)
         # niter = int(np.ceil(batches.shape[0] / batch_size))
         nout = self.nclasses + 32*return_conv
         y = np.zeros((ny*nx, nout, ly, lx))
@@ -311,7 +312,7 @@ class TiledImage(Dataset):
         return self.imgi[:, ys:ye,  xs:xe]
 
     def __len__(self):
-        return len(self.data)
+        return len(self.ysub)
     
 
 def make_tiles(imgi, bsize, tile_overlap):
@@ -358,7 +359,7 @@ def _taper_mask(ly=224, lx=224, sig=7.5):
     return mask
 
 
-def normalize_img(img, axis=-1, invert=False):
+def normalize_img(img, axis=-1, invert=False, device='cuda'):
     """ normalize each channel of the image so that so that 0.0=1st percentile
     and 1.0=99th percentile of image intensities
 
@@ -389,8 +390,8 @@ def normalize_img(img, axis=-1, invert=False):
     img = torch.moveaxis(img, axis, 0)
     for k in range(img.shape[0]):
         # ptp can still give nan's with weird images
-        i99 = percentile(img[k], 99)
-        i1 = percentile(img[k], 1)
+        i99 = percentile(img[k], 99, device)
+        i1 = percentile(img[k], 1, device)
         if i99 - i1 > +1e-3: #np.ptp(img[k]) > 1e-3:
             img[k] = (img[k] - i1) / (i99 - i1)
             if invert:
@@ -400,8 +401,8 @@ def normalize_img(img, axis=-1, invert=False):
     img = torch.moveaxis(img, 0, axis)
     return img
 
-def percentile(tensor, q):
-    flattened = tensor.cuda().flatten()
+def percentile(tensor, q, device):
+    flattened = tensor.to(device).flatten()
     k = int((q / 100.0) * flattened.numel())
     sorted_tensor, _ = torch.sort(flattened)
     percentile_value = sorted_tensor[k-1]#.float()
@@ -491,7 +492,7 @@ class NISModel(UnetModel):
         img = np.asarray(x[0])
         if normalize or invert:
             print(datetime.now(), f"Normalize img")
-            img = normalize_img(torch.from_numpy(img), invert=invert).numpy()
+            img = normalize_img(torch.from_numpy(img), invert=invert, device=self.device).numpy()
             print(datetime.now(), f"Done")
             
         if rescale != 1.0:
