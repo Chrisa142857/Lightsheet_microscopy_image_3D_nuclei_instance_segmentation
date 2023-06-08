@@ -697,15 +697,43 @@ def get_masks(p, iscell=None, rpad=20):
     isort = torch.argsort(Nmax, descending=True)
     seeds = tuple(seeds[i][isort] for i in range(len(seeds)))
     pix = torch.stack(seeds, dim=1)
-    h = h.cpu().numpy()
     #####################################
-    pix = list(pix.cpu().numpy())
+    # h = h.cpu().numpy()
+    # pix = list(pix.cpu().numpy())
+    # if dims==3: # expand coordinates, center is (1, 1)
+    #     expand = np.nonzero(np.ones((3,3,3)))
+    # else:
+    #     expand = np.nonzero(np.ones((3,3)))
+    # for e in expand:
+    #     e = np.expand_dims(e,1)
+    # for iter in range(iter_num): # expand all seeds four times
+    #     for k in range(len(pix)): # expand each seed
+    #         if iter==0:
+    #             pix[k] = list(pix[k])
+    #         newpix = []
+    #         iin = []
+    #         for i,e in enumerate(expand): # for x, y, z of a 3x3 grid
+    #             epix = e[:,np.newaxis] + np.expand_dims(pix[k][i], 0) - 1
+    #             epix = epix.flatten()
+    #             iin.append(np.logical_and(epix>=0, epix<shape[i]))
+    #             newpix.append(epix)
+    #         iin = np.all(tuple(iin), axis=0)
+    #         for p in newpix:
+    #             p = p[iin]
+    #         newpix = tuple(newpix)
+    #         igood = h[newpix]>2
+    #         for i in range(dims):
+    #             pix[k][i] = newpix[i][igood]
+    #         if iter==iter_num-1:
+    #             # pix[k] = torch.from_numpy(np.array(pix[k])).T
+    #             pix[k] = tuple(pix[k])
+    #####################################
+    pix = list(pix)
     if dims==3: # expand coordinates, center is (1, 1)
-        expand = np.nonzero(np.ones((3,3,3)))
+        expand = torch.nonzero(torch.ones((3,3,3))).T
     else:
-        expand = np.nonzero(np.ones((3,3)))
-    for e in expand:
-        e = np.expand_dims(e,1)
+        expand = torch.nonzero(torch.ones((3,3))).T
+    expand = tuple(e.unsqueeze(1) for e in expand)
     for iter in range(iter_num): # expand all seeds four times
         for k in range(len(pix)): # expand each seed
             if iter==0:
@@ -713,11 +741,11 @@ def get_masks(p, iscell=None, rpad=20):
             newpix = []
             iin = []
             for i,e in enumerate(expand): # for x, y, z of a 3x3 grid
-                epix = e[:,np.newaxis] + np.expand_dims(pix[k][i], 0) - 1
+                epix = e.unsqueeze(1) + pix[k][i].unsqueeze(0) - 1
                 epix = epix.flatten()
-                iin.append(np.logical_and(epix>=0, epix<shape[i]))
+                iin.append(torch.logical_and(epix>=0, epix<shape[i]))
                 newpix.append(epix)
-            iin = np.all(tuple(iin), axis=0)
+            iin = torch.stack(iin).all(0)
             for p in newpix:
                 p = p[iin]
             newpix = tuple(newpix)
@@ -725,22 +753,29 @@ def get_masks(p, iscell=None, rpad=20):
             for i in range(dims):
                 pix[k][i] = newpix[i][igood]
             if iter==iter_num-1:
-                # pix[k] = torch.from_numpy(np.array(pix[k])).T
                 pix[k] = tuple(pix[k])
+########################################
 
     M = torch.zeros(*shape, dtype=torch.long)
     # M = np.zeros(h.shape, np.uint32)
     remove_bigc = 0
     big = np.prod(shape0) * 0.4
+    for i in range(dims):
+        pflows[i] = pflows[i] + rpad
+    fg = torch.zeros(*shape, dtype=bool)
+    fg[tuple(pflows)] = True
     for k in range(len(pix)):
         if len(pix[k][0]) > big:
             remove_bigc += 1
             continue
-        M[pix[k]] = 1+k-remove_bigc
-    for i in range(dims):
-        pflows[i] = pflows[i] + rpad
-    M0 = M[tuple(pflows)].numpy()
-    # M0
+        is_fg = fg[pix[k]]
+        if is_fg.any():
+            coord = (pix[k][0][is_fg], pix[k][1][is_fg], pix[k][2][is_fg])
+            M[coord] = 1+k-remove_bigc
+        # M[pix[k]] = 1+k-remove_bigc
+        
+    M0 = M[tuple(pflows)]
+    # M0 = M.numpy()
     ###########################################
     # pix = pix.numpy()
     # expand_s = iter_num * 2 + 1 # total expand size = iter * 2 + 1
@@ -812,7 +847,7 @@ def get_masks(p, iscell=None, rpad=20):
     # if len(bigc) > 0 and (len(bigc)>1 or bigc[0]!=0):
     #     M0 = fastremap.mask(M0, bigc)
     # fastremap.renumber(M0, in_place=True) #convenient to guarantee non-skipped labels
-    M0 = np.reshape(M0, shape0)
+    M0 = torch.reshape(M0, shape0).numpy()
     return M0
 
 def compute_masks(dP, cellprob, p=None, niter=200, 
@@ -878,7 +913,7 @@ def compute_masks(dP, cellprob, p=None, niter=200,
     # moving the cleanup to the end helps avoid some bugs arising from scaling...
     # maybe better would be to rescale the min_size and hole_size parameters to do the
     # cleanup at the prediction scale, or switch depending on which one is bigger... 
-    mask = core.fill_holes_and_remove_small_masks(mask, min_size=min_size)
+    # mask = core.fill_holes_and_remove_small_masks(mask, min_size=min_size)
 
     if mask.dtype==np.uint32:
         dynamics_logger.warning('more than 65535 masks in image, masks returned as np.uint32')
