@@ -30,34 +30,44 @@ def main():
     x = np.load(fs[0])
     whole_brain_shape = (depth, x.shape[1], x.shape[2])
     trained_model = 'downloads/train_data/data_P4_P15_rescaled-as-P15/train/models/cellpose_residual_on_style_on_concatenation_off_train_2023_05_29_22_42_54.153497_epoch_21'
-    model = NISModel(device='cpu', pretrained_model=trained_model)
+    model = NISModel(device=torch.device('cpu'), pretrained_model=trained_model)
     rescale = model.diam_mean / model.diam_labels
-    niter = 1 / rescale * 200
+    niter = np.uint32(1 / rescale * 200)
     save_path = os.path.join(save_r, brain_tag+save_ftail)
     f = h5py.File(save_path, 'w')
     seg_dset = f.create_dataset('nuclei_segmentation', whole_brain_shape, dtype='int', chunks=True, compression='gzip')
-    coord_dset = f.create_dataset('coordinate', (1000, 4), dtype='int', chunks=True, maxshape=(None, 4))
-    center_dset = f.create_dataset('label', (1000, 1), dtype='int', chunks=True, maxshape=(None, 1))
-    stitch_range = f.create_dataset('wait_for_stitch', (1000, 6), dtype='int', maxshape=(None, 6))
+    coord_dset = f.create_dataset('coordinate', (0, 4), dtype='int', chunks=True, maxshape=(None, 4))
+    label_dset = f.create_dataset('label', (0,), dtype='int', chunks=True, maxshape=(None,))
+    idbase_dset = f.create_dataset('idbase', (0,), dtype='int', chunks=True, maxshape=(None,))
+    stitch_range = f.create_dataset('wait_for_stitch', (0, 6), dtype='int', maxshape=(None, 6))
     idbase = 0
     for z in range(0, depth, chunk_depth):
         zmin, zmax = z, min(depth, z + chunk_depth)
         masks, coords, labels = compute_one_chunk(fs, zmin, zmax, niter)
         if masks is None: continue
-        seg_dset[zmin:zmax, :, :] = masks+idbase
-        # idbase = idbase + max(labels)
+        seg_dset[zmin:zmax, :, :] = masks
+        old_contour_n = coord_dset.shape[0]
+        new_contour_n = old_contour_n + coords.shape[0]
+        coord_dset.resize((new_contour_n, coord_dset.shape[1]))
+        coord_dset[old_contour_n:] = coords
+        old_instance_n = label_dset.shape[0]
+        new_instance_n = old_instance_n + labels.shape[0]
+        label_dset.resize((new_instance_n,))
+        label_dset[old_instance_n:] = labels
+        idbase_dset.resize((new_instance_n,))
+        idbase_dset[old_instance_n:] = idbase
+        idbase = idbase + max(labels)
     
-
 def compute_one_chunk(all_paths, zmin, zmax, niter):
     with mp.Pool(processes=4) as pool:
         paths = [path for path in all_paths if zmin <= filename_to_depth(path) < zmax]
         data = list(tqdm(pool.imap(np.load, [path for path in paths]), total=len(paths), desc=f"Load from slice {zmin} to {zmax}")) # [3 x Y x X]
-    data = np.stack(data, axis=1)
+    data = torch.from_numpy(np.stack(data, axis=1))
     dP = data[:3]
     cellprob = data[3]
     print(datetime.now(), 'Start compute masks from grad')
     masks, coords, labels = compute_masks(dP, cellprob, niter=niter)
-    print(datetime.now(), f'Done, {coords.shape} masks from grad')
+    print(datetime.now(), f'Done, {labels.shape} masks from grad')
     return masks, coords, labels
 
 def compute_masks(dP, cellprob, niter, 
@@ -298,7 +308,7 @@ def get_masks(p, iscell=None, rpad=20):
         coord = (pix[k][0][is_fg], pix[k][1][is_fg], pix[k][2][is_fg])
         M[coord] = 1+k-remove_c
         coords.append(
-            torch.stack([c for c in coord] + [1+k-remove_c], -1)[is_fg, :]
+            torch.cat([torch.stack(coord, -1), torch.zeros(len(coord[0]), 1, dtype=coord[0].dtype)+1+k-remove_c], -1)[is_fg, :]
         )
         labels.append(1+k-remove_c)
     M0 = M[tuple(pflows)]
@@ -315,3 +325,6 @@ def get_masks(p, iscell=None, rpad=20):
     # fastremap.renumber(M0, in_place=True) #convenient to guarantee non-skipped labels
     M0 = torch.reshape(M0, shape0)
     return M0, coords, labels
+
+if __name__ == '__main__':
+    main()
