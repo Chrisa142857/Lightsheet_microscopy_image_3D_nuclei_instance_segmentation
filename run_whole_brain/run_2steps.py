@@ -15,7 +15,7 @@ num_cpus = mp.cpu_count()-1
 print(datetime.now(), "Pipeline start with %d CPUs" % (num_cpus+1))
 
 def main():
-    slicen_3d = 24
+    slicen_3d = 12
     dir_n = 'flow_3d'
     pair_tag = 'pair15'
     # brain_tag = 'L73D766P4' # L73D766P9
@@ -35,7 +35,7 @@ def main():
     save_r = '%s/%s' % (save_r, dir_n)
     os.makedirs(save_r, exist_ok=True)
     img_r = '/lichtman/Felix/Lightsheet/P4/%s/output_%s/stitched' % (pair_tag, brain_tag)
-    mask_tile = utils.MaskTiledImg(maskn='/lichtman/Felix/Lightsheet/P4/%s/output_%s/registered/%s_MASK_topro_25_all.nii' % (pair_tag, brain_tag, brain_tag), img_zres=4)
+    mask_tile = utils.MaskTiledImg(maskn='/lichtman/Felix/Lightsheet/P4/%s/output_%s/registered/%s_MASK_topro_25_all.nii' % (pair_tag, brain_tag, brain_tag), img_zres=std_resolution[0])
     model.mask_tile = mask_tile
     eval_tag = '_C1_'
     fs = [os.path.join(img_r, f) for f in os.listdir(img_r) if eval_tag in f and f.endswith('.tif')]
@@ -57,22 +57,24 @@ def main():
     for data in tqdm(dset, desc="Run 2D Unet from slice %d to %d" % (start, end)):
         img, fn = data
         model.mask_tile.z = filename_to_depth(fn, depth_start)
-        if model.mask_tile.z >= len(model.mask_tile.mask): 
+        if int(model.mask_tile.z/model.mask_tile.zratio) >= len(model.mask_tile.mask): 
             print(datetime.now(), "Brain mask end, break")
             break
         print(datetime.now(), "Input to model")
         prob = model.get_prob(img, diameter=None, batch_size=100, channels=[0,0])
         flow_2d.append(prob)
         if len(flow_2d) == slicen_3d:
-            if process_2d_to_3d is not None: 
-                process_2d_to_3d.join()
-                time.sleep(1)
-            process_2d_to_3d = mp.Process(target=one_chunk_2d_to_3d, args=(resampled_si, flow_2d, pre_final_yx_flow, pre_last_second, scale_r, save_r, fn, device))
-            process_2d_to_3d.start()
-            # one_chunk_2d_to_3d(resampled_si, flow_2d, pre_final_yx_flow, pre_last_second, scale_r, save_r, fn, device)
+            # if process_2d_to_3d is not None: 
+            #     print(datetime.now(), "Wait for previous chunk 2D to 3D")
+            #     process_2d_to_3d.join()
+            #     time.sleep(1)
+            flow_2d = preproc_flow2d(np.stack(flow_2d, axis=0), pre_final_yx_flow, scale_r)
+            # process_2d_to_3d = mp.Process(target=one_chunk_2d_to_3d, args=(resampled_si, flow_2d.clone(), pre_last_second.clone() if pre_last_second is not None else None, save_r, fn, device))
+            # process_2d_to_3d.start()
+            one_chunk_2d_to_3d(resampled_si, flow_2d, pre_last_second, save_r, fn, device)
             resampled_si += rescaled_chunk_depth
-            pre_final_yx_flow = flow_2d[-1]
-            pre_last_second = flow_2d[-2]
+            pre_final_yx_flow = flow_2d[:, -1]
+            pre_last_second = flow_2d[:2, -2]
             print(datetime.now(), f"Keep prev chunk's last two slices, shapes are {pre_final_yx_flow.shape}, {pre_last_second.shape}")
             flow_2d = []
         si += 1
@@ -80,20 +82,24 @@ def main():
 
     if len(flow_2d) > 0:
         print(datetime.now(), "Start 2D to 3D")
-        one_chunk_2d_to_3d(resampled_si, flow_2d, pre_final_yx_flow, pre_last_second, scale_r, save_r, fn, device)
+        flow_2d = preproc_flow2d(np.stack(flow_2d, axis=0), pre_final_yx_flow, scale_r)
+        one_chunk_2d_to_3d(resampled_si, flow_2d, pre_last_second, save_r, fn, device)
         print(datetime.now(), "Done 2D to 3D")
-        
-def one_chunk_2d_to_3d(resampled_si, flow_2d, pre_final_yx_flow, pre_last_second, scale_r, save_r, fn, device):
-    print(datetime.now(), "Start 2D to 3D")
-    save_processes = []
-    flow_2d = torch.from_numpy(np.stack(flow_2d, axis=0).transpose((3, 0, 1, 2)))
+
+def preproc_flow2d(flow_2d, pre_final_yx_flow, scale_r):
+    flow_2d = torch.from_numpy(flow_2d.transpose((3, 0, 1, 2)))
     print(datetime.now(), f"Resample to standard resolution from shape {flow_2d.shape}")
     flow_2d = torch.nn.functional.interpolate(flow_2d.unsqueeze(0), scale_factor=scale_r, mode='nearest-exact').squeeze()#.numpy()
     if pre_final_yx_flow is not None: 
-        pre_final_yx_flow = torch.from_numpy(pre_final_yx_flow.transpose((2, 0, 1)))
-        pre_last_second = torch.from_numpy(pre_last_second.transpose((2, 0, 1)))
+        # pre_final_yx_flow = pre_final_yx_flow.permute((2, 0, 1))
+        # pre_last_second = pre_last_second.permute((2, 0, 1))
         flow_2d = torch.cat([pre_final_yx_flow.unsqueeze(1), flow_2d], dim=1)
     print(datetime.now(), f"Resample to shape {flow_2d.shape}")
+    return flow_2d
+
+def one_chunk_2d_to_3d(resampled_si, flow_2d, pre_last_second, save_r, fn, device):
+    print(datetime.now(), "Start 2D to 3D at resampled slice %d" % resampled_si)
+    save_processes = []
     for i in range(flow_2d.shape[1]-1):
         yx_flow = flow_2d[:2, i]
         cellprob = flow_2d[2, i]
@@ -102,7 +108,9 @@ def one_chunk_2d_to_3d(resampled_si, flow_2d, pre_final_yx_flow, pre_last_second
             pre_yx_flow = flow_2d[:2, i-1]
         else:
             pre_yx_flow = pre_last_second
+        ##########################################################################
         dP = sim_grad_z(i, yx_flow, cellprob, pre_yx_flow, next_yx_flow, device=device)
+        ##########################################################################
         print(datetime.now(), "Save 3D flow map %d" % resampled_si)
         save_path = '%s/%s' % (save_r, fn.split('/')[-1].replace('.tif', '_resample%d.npy' % resampled_si))
         if len(save_processes) > 0: save_processes[-1].join()
