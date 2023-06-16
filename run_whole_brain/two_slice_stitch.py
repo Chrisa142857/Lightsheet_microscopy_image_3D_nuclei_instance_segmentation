@@ -56,9 +56,17 @@ class StitchModel(nn.Module):
         x = torch.cat([node1, node2]).float().to(self.device) # N1+N2 x node_feat_size
         print(datetime.now(), "Compute distance between two node sets to find N-neighbors")
         # distance = get_distance(bbox1.to('cpu'), bbox2.to('cpu')).to(self.device) # N1 x N2
-        distance = get_distance_low_ram(bbox1.to('cpu'), bbox2.to('cpu')).to(self.device) # N1 x N2
+        distance = get_distance_low_ram(bbox1.to('cpu'), bbox2.to('cpu'))#.to(self.device) # N1 x N2
         print(datetime.now(), "Determine edge index based on deistance")
-        out, _ = build_one_graph(distance, self.distance_thr, range(N1), 0, [[], []], [[], []], topn=self.topn)
+        if self.multi_gpu == 0:
+            out, _ = build_one_graph(distance, self.distance_thr, range(N1), 0, [[], []], [[], []], topn=self.topn)
+        else:
+            split_p = int(N1/2)
+            inputs = [(distance[:split_p].cuda(0), self.distance_thr, range(split_p), 0, [[], []], [[], []], self.topn, True),
+                      (distance[split_p:].cuda(1), self.distance_thr, range(N1-split_p), 0, [[], []], [[], []], self.topn, True, split_p)]
+            with Pool(processes=2) as pool:
+                results = pool.starmap(build_one_graph, inputs)
+            out = [results[0][0][0] + results[1][0][0]]
         print(datetime.now(), "Compute edge feature")
         edge_index = [[], []]
         edge_attr = []
@@ -72,15 +80,15 @@ class StitchModel(nn.Module):
                     torch.stack([zflow1[indicies[0]], zflow2[ind], bbox1[indicies[0], 0] - bbox2[ind, 0], bbox1[indicies[0], 1] - bbox2[ind, 1], bbox1[indicies[0], 2] / bbox2[ind, 2], bbox1[indicies[0], 3] / bbox2[ind, 3]]),
                 ])
             for ind in indicies[1:]])
-        for indicies in out[1]:
-            edge_index[0].extend([indicies[0]+N1 for _ in range(len(indicies)-1)])
-            edge_index[1].extend([ind for ind in indicies[1:]])
-            edge_attr.extend([
-                torch.cat([
-                    # hist1[ind], hist2[indicies[0]],
-                    torch.stack([zflow1[ind], zflow2[indicies[0]], bbox1[ind, 0] - bbox2[indicies[0], 0], bbox1[ind, 1] - bbox2[indicies[0], 1], bbox1[ind, 2] / bbox2[indicies[0], 2], bbox1[ind, 3] / bbox2[indicies[0], 3]]),
-                ])
-            for ind in indicies[1:]])
+        # for indicies in out[1]:
+        #     edge_index[0].extend([indicies[0]+N1 for _ in range(len(indicies)-1)])
+        #     edge_index[1].extend([ind for ind in indicies[1:]])
+        #     edge_attr.extend([
+        #         torch.cat([
+        #             # hist1[ind], hist2[indicies[0]],
+        #             torch.stack([zflow1[ind], zflow2[indicies[0]], bbox1[ind, 0] - bbox2[indicies[0], 0], bbox1[ind, 1] - bbox2[indicies[0], 1], bbox1[ind, 2] / bbox2[indicies[0], 2], bbox1[ind, 3] / bbox2[indicies[0], 3]]),
+        #         ])
+        #     for ind in indicies[1:]])
         edge_index = torch.LongTensor(edge_index).to(self.device)
         edge_attr = torch.stack(edge_attr).to(self.device)
         print(datetime.now(), "Done")
@@ -106,16 +114,21 @@ def multi_gpu_node_feat(img, mask, flow, tag):
     print(datetime.now(), "Get node feature of nuclei instance of %s slice" % tag)
     node, zflow = run_all_node(img, mask, flow) # N1 x 27
     print(datetime.now(), "Done %s slice" % tag)
-    return node, zflow, tag
+    del img, mask, flow
+    return node.detach().cpu(), zflow.detach().cpu(), tag
 
 
-def build_one_graph(distance, thr, indecies, dim, used, out, topn=5):
+def build_one_graph(distance, thr, indecies, dim, used, out, topn=5, multi_gpu=False, split_p=None):
     for i in indecies:
         if thr < 0: break
         if i in used[dim]: continue
         new_indecies = torch.argsort(distance.select(dim, i))[:topn]
         used[dim].append(i)
-        out[dim].append([i] + new_indecies.tolist())
+        if split_p is not None:
+            out[dim].append([i+split_p] + new_indecies.tolist())
+        else:
+            out[dim].append([i] + new_indecies.tolist())
+    if multi_gpu: del distance
     return out, used
 
 

@@ -41,11 +41,11 @@ def main():
     # total = len(next_id[next_id!=None])
     total = len(dims[(next_id!=None) & (dims==0)])
     stitching_i = 0
-    if os.path.exists(remap_save_path):
-        with open(remap_save_path, 'r') as jsonf:
-            out_json = json.load(jsonf)
-    else:
-        out_json = []
+    # if os.path.exists(remap_save_path):
+    #     with open(remap_save_path, 'r') as jsonf:
+    #         out_json = json.load(jsonf)
+    # else:
+    out_json = []
     for i in range(N):
         if next_id[i] is None: continue
         if dims[i] != 0: continue
@@ -65,7 +65,7 @@ def main():
         next_img_fn = flow_fnlist[next_slice_id[0]].split('_resample')[0]+'.tif'
         image = np.stack([np.asarray(utils.imread(os.path.join(img_r, pre_img_fn))), 
                           np.asarray(utils.imread(os.path.join(img_r, next_img_fn)))])
-        flow = load_flow(brain_flow_dir, pre_slice_id, next_slice_id[0]+1, ys, ye, xs, xe)
+        flow = load_flow(brain_flow_dir, pre_slice_id, next_slice_id[0], ys, ye, xs, xe)
         dim_vol= dim // 2
         pre_mask, next_stack = np.take(slice, 0, axis=dim_vol), np.take(slice, [ii for ii in range(1, len(indices))], axis=dim_vol)
         pre_slice_image, next_slice_image = np.take(image, 0, axis=dim_vol), np.take(image, 1, axis=dim_vol)
@@ -81,6 +81,7 @@ def main():
         })
         with open(remap_save_path,'w') as file:
             file.write(json.dumps(out_json, indent=4, cls=NpEncoder))
+        torch.cuda.empty_cache()
 
 
 def stitch_one_gap(model, pre_mask, next_stack, pre_slice, next_slice, pre_flow, next_flow, axis):
@@ -205,7 +206,7 @@ def sort_fs(fs, get_i):
 
 def load_flow(fdir, zmin, zmax, ymin, ymax, xmin, xmax):
     flist = sort_fs([fn for fn in os.listdir(fdir) if fn.endswith('.npy')], get_i_xy)
-    fs = [fn for fn in flist if zmin <= get_i_xy(fn) < zmax]
+    fs = [fn for fn in flist if zmin <= get_i_xy(fn) < zmax+1]
     with Pool(processes=4) as pool:
         # data = list(tqdm(pool.imap(load_data, [(os.path.join(fdir, fn), ymin, ymax, xmin, xmax) for fn in fs]), total=len(fs), desc="Load flow")) # [3 x Y x X]
         data = list(pool.imap(load_data, [(os.path.join(fdir, fn), ymin, ymax, xmin, xmax) for fn in fs])) # [3 x Y x X]
