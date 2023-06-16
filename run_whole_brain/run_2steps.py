@@ -71,8 +71,7 @@ def main():
             flow_2d = preproc_flow2d(np.stack(flow_2d, axis=0), pre_final_yx_flow, scale_r)
             # process_2d_to_3d = mp.Process(target=one_chunk_2d_to_3d, args=(resampled_si, flow_2d.clone(), pre_last_second.clone() if pre_last_second is not None else None, save_r, fn, device))
             # process_2d_to_3d.start()
-            one_chunk_2d_to_3d(resampled_si, flow_2d, pre_last_second, save_r, fn, device)
-            resampled_si += rescaled_chunk_depth
+            resampled_si = one_chunk_2d_to_3d(resampled_si, flow_2d, pre_last_second, save_r, fn, device)
             pre_final_yx_flow = flow_2d[:, -1]
             pre_last_second = flow_2d[:2, -2]
             print(datetime.now(), f"Keep prev chunk's last two slices, shapes are {pre_final_yx_flow.shape}, {pre_last_second.shape}")
@@ -112,7 +111,7 @@ def one_chunk_2d_to_3d(resampled_si, flow_2d, pre_last_second, save_r, fn, devic
         dP = sim_grad_z(i, yx_flow, cellprob, pre_yx_flow, next_yx_flow, device=device)
         ##########################################################################
         print(datetime.now(), "Save 3D flow map %d" % resampled_si)
-        save_path = '%s/%s' % (save_r, fn.split('/')[-1].replace('.tif', '_resample%d.npy' % resampled_si))
+        save_path = '%s/%s' % (save_r, fn.split('/')[-1].replace('.tif', '_resample%04d.npy' % resampled_si))
         if len(save_processes) > 0: save_processes[-1].join()
         if len(save_processes) > num_cpus: 
             for p in save_processes: p.join(); time.sleep(0.1); p.terminate()
@@ -121,6 +120,7 @@ def one_chunk_2d_to_3d(resampled_si, flow_2d, pre_last_second, save_r, fn, devic
         save_processes[-1].start()
         resampled_si += 1
     print(datetime.now(), "Done 2D to 3D")
+    return resampled_si
 
 def sim_grad_z(i, yx_flow, cellprob, pre_yx_flow, next_yx_flow, device='cpu'):
     stagen = 7
