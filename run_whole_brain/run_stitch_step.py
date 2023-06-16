@@ -7,17 +7,20 @@ from scipy.ndimage import find_objects
 from multiprocessing import Pool
 import datetime, sys
 
+import utils
 from two_slice_stitch import StitchModel
 
 # brain_tag = sys.argv[1]
 brain_tag = 'L73D766P9'
-r = '/lichtman/ziquanw/Lightsheet/results/P4/pair15/%s $' % brain_tag
+pair_tag = 'pair15'
+r = '/lichtman/ziquanw/Lightsheet/results/P4/%s/%s' % (pair_tag, brain_tag)
+img_r = '/lichtman/Felix/Lightsheet/P4/%s/output_%s/stitched' % (pair_tag, brain_tag)
 brain_result_path = '%s/%s_NIS_results.h5' % (r, brain_tag)
 # brain_image_path = 'wholebrain_results/P4_weights/%s_images.h5' % brain_tag
 # brain_flow_path = 'wholebrain_results/P4_weights/%s_flow.h5' % brain_tag
 brain_flow_dir = '%s/flow_3d' % r
-out_result_path = 'wholebrain_results/P4_weights/%s_stitched.h5' % brain_tag
-remap_save_path = 'wholebrain_results/P4_weights/%s_remap.json' % brain_tag
+# out_result_path = 'wholebrain_results/P4_weights/%s_stitched.h5' % brain_tag
+remap_save_path = '%s/%s_remap.json' % (r, brain_tag)
 
 def main():    
     max_nuclei_size = (10, 30, 30) # 
@@ -26,13 +29,7 @@ def main():
     graph_model.to('cuda:%d'%device)
     graph_model.load_state_dict(torch.load('downloads/resource/tss_weight.pth'))
     graph_model.eval()
-    outf = h5py.File(out_result_path, 'a')
-    out_seg = outf['nuclei_segmentation']
-    # out_remap = outf.create_dataset('id_remap', ())
-    # imgf = h5py.File(brain_image_path, 'r')
-    # volume = imgf['volume']
-    # flowf = h5py.File(brain_flow_path, 'r')
-    # flow_volume = flowf['flow']
+    flow_fnlist = sort_fs([fn for fn in os.listdir(brain_flow_dir) if fn.endswith('.npy')], get_i_xy)
     maskf = h5py.File(brain_result_path, 'r')
     seg = maskf['nuclei_segmentation']
     stitch_pts = maskf['wait_for_stitch']
@@ -40,6 +37,7 @@ def main():
     stitch_pts = stitch_pts[stitch_pts.sum(1)>0]
     next_id, dims = match_stitch_pt(stitch_pts) # only stitch pre slice to the next
     N = stitch_pts.shape[0]
+    next_id = [None] + [stitch_pts[i][0]+1 for i in range(1, N-1)] + [None]
     # total = len(next_id[next_id!=None])
     total = len(dims[(next_id!=None) & (dims==0)])
     stitching_i = 0
@@ -48,18 +46,21 @@ def main():
         if next_id[i] is None: continue
         if dims[i] != 0: continue
         stitching_i += 1
-        print(datetime.datetime.now(), "[%03d/%d] Start stitch" % (stitching_i, total))
         pt = stitch_pts[i]
         dim = dims[i]
         pre_slice_id = pt[dim]
-        next_slice_id = stitch_pts[next_id[i], dim]
+        next_slice_id = next_id[i]
         next_slice_id = [next_slice_id.item()+j for j in range(max_nuclei_size[dim//2])]
         indices = [pre_slice_id] + next_slice_id
+        print(datetime.datetime.now(), "[%03d/%d] Start stitch slices %s" % (stitching_i, total, indices))
         zs, ze, ys, ye, xs, xe = pt # ~s and ~e are the same in the dim of stitching plane, e.g., zs = ze = 64
         print(datetime.datetime.now(), "Load mask, image, and nuclei probability flow")
         assert dim == 0, "Not implemented"
         slice = seg[indices, ys:ye, xs:xe]
-        image = volume[[pre_slice_id, next_slice_id[0]], ys:ye, xs:xe]
+        pre_img_fn = flow_fnlist[pre_slice_id].split('_resample')[0]+'.tif'
+        next_img_fn = flow_fnlist[next_slice_id[0]].split('_resample')[0]+'.tif'
+        image = np.stack([np.asarray(utils.imread(os.path.join(img_r, pre_img_fn))), 
+                          np.asarray(utils.imread(os.path.join(img_r, next_img_fn)))])
         flow = load_flow(brain_flow_dir, pre_slice_id, next_slice_id[0]+1, ys, ye, xs, xe)
         dim_vol= dim // 2
         pre_mask, next_stack = np.take(slice, 0, axis=dim_vol), np.take(slice, [ii for ii in range(1, len(indices))], axis=dim_vol)
