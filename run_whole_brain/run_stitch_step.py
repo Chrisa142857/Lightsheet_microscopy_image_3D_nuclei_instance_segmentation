@@ -21,13 +21,13 @@ brain_result_path = '%s/%s_NIS_results.h5' % (r, brain_tag)
 brain_flow_dir = '%s/flow_3d' % r
 # out_result_path = 'wholebrain_results/P4_weights/%s_stitched.h5' % brain_tag
 remap_save_path = '%s/%s_remap.json' % (r, brain_tag)
+device = 'cuda:1' # 'cuda:1'
 
 def main():    
     max_nuclei_size = (10, 30, 30) # 
-    device = 1
-    graph_model = StitchModel('cuda:%d'%device)
-    graph_model.to('cuda:%d'%device)
-    graph_model.load_state_dict(torch.load('downloads/resource/tss_weight.pth'))
+    graph_model = StitchModel(device)
+    graph_model.to(device)
+    graph_model.load_state_dict(torch.load('downloads/resource/tss_weight.pth', map_location=device))
     graph_model.eval()
     flow_fnlist = sort_fs([fn for fn in os.listdir(brain_flow_dir) if fn.endswith('.npy')], get_i_xy)
     maskf = h5py.File(brain_result_path, 'r')
@@ -41,7 +41,11 @@ def main():
     # total = len(next_id[next_id!=None])
     total = len(dims[(next_id!=None) & (dims==0)])
     stitching_i = 0
-    out_json = []
+    if os.path.exists(remap_save_path):
+        with open(remap_save_path, 'r') as jsonf:
+            out_json = json.load(jsonf)
+    else:
+        out_json = []
     for i in range(N):
         if next_id[i] is None: continue
         if dims[i] != 0: continue
@@ -49,8 +53,8 @@ def main():
         pt = stitch_pts[i]
         dim = dims[i]
         pre_slice_id = pt[dim]
-        next_slice_id = next_id[i]
-        next_slice_id = [next_slice_id.item()+j for j in range(max_nuclei_size[dim//2])]
+        next_slice_id = [next_id[i]]
+        # next_slice_id = [next_slice_id.item()+j for j in range(max_nuclei_size[dim//2])]
         indices = [pre_slice_id] + next_slice_id
         print(datetime.datetime.now(), "[%03d/%d] Start stitch slices %s" % (stitching_i, total, indices))
         zs, ze, ys, ye, xs, xe = pt # ~s and ~e are the same in the dim of stitching plane, e.g., zs = ze = 64
@@ -87,7 +91,13 @@ def stitch_one_gap(model, pre_mask, next_stack, pre_slice, next_slice, pre_flow,
         print(datetime.datetime.now(), 'Skip, no nuclei in one slice')
         return None
     print(datetime.datetime.now(), 'Run stitching model')
-    edge_pred = model(input)
+    try:
+        edge_pred = model(input)
+    except:
+        print(datetime.datetime.now(), 'Graph model out of cuda mem, using CPU')
+        model = model.cpu()
+        edge_pred = model(input.cpu())
+        model = model.to(device)
     print(datetime.datetime.now(), 'Decode the output as a ID remap dict')
     pred = edge_pred.argmax(1).detach().cpu()
     is_new_cell = pred == 0
