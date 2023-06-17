@@ -5,8 +5,6 @@ from tss_model import MLP, TSS, get_model_config
 import torch.nn.functional as F
 from tqdm import trange
 from datetime import datetime
-from torch.multiprocessing import Pool
-torch.multiprocessing.set_start_method('spawn', force=True)
 
 class StitchModel(nn.Module):
     '''
@@ -22,11 +20,11 @@ class StitchModel(nn.Module):
         self.topn = 2
         self.multi_gpu = 2
         self.classifier = MLP(input_dim=tss_config['classifier_feats_dict']['edge_out_dim']*self.topn, fc_dims=[128, 64, 32, self.topn+1], use_batchnorm=True, dropout_p=0.3)
-        if self.multi_gpu:
-            self.pool1 = Pool(processes=self.multi_gpu)
-            self.pool2 = Pool(processes=self.multi_gpu)
+        # if self.multi_gpu:
+        #     self.pool1 = Pool(processes=self.multi_gpu)
+        #     self.pool2 = Pool(processes=self.multi_gpu)
 
-    def preprocess(self, data):
+    def preprocess(self, data, pool1=None, pool2=None):
         data1, data2 = data
         # H x W, H x W, N x 4, 3 x H x W or 2 x H x W
         img1, mask1, bbox1, flow1 = data1
@@ -48,7 +46,7 @@ class StitchModel(nn.Module):
             print(datetime.now(), "Get node feature of nuclei instance of next slice")
             node2, zflow2 = run_all_node(img2, mask2, flow2) # N2 x 27
         else:
-            results = self.pool1.starmap(multi_gpu_node_feat, [(img1.cuda(0), mask1.cuda(0), flow1.cuda(0), 'prev'), (img2.cuda(1), mask2.cuda(1), flow2.cuda(1), 'next')], )
+            results = pool1.starmap(multi_gpu_node_feat, [(img1.cuda(0), mask1.cuda(0), flow1.cuda(0), 'prev'), (img2.cuda(1), mask2.cuda(1), flow2.cuda(1), 'next')], )
             node1, zflow1, tag1 = results[0]
             node1, zflow1 = node1.to(self.device), zflow1.to(self.device)
             node2, zflow2, tag2 = results[1]
@@ -66,7 +64,7 @@ class StitchModel(nn.Module):
             split_p = int(N1/2)
             inputs = [(distance[:split_p].cuda(0), self.distance_thr, range(split_p), 0, [[], []], [[], []], self.topn, True),
                       (distance[split_p:].cuda(1), self.distance_thr, range(N1-split_p), 0, [[], []], [[], []], self.topn, True, split_p)]
-            results = self.pool2.starmap(build_one_graph, inputs)
+            results = pool2.starmap(build_one_graph, inputs)
             out = [[]]
             for ri in range(len(results)):
                 out[0] += results[ri][0][0]

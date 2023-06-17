@@ -4,11 +4,13 @@ import numpy as np
 from torch_geometric.data import Data
 import fastremap
 from scipy.ndimage import find_objects
-from multiprocessing import Pool
 import datetime, sys
 
 import utils
 from two_slice_stitch import StitchModel
+
+from torch.multiprocessing import Pool
+torch.multiprocessing.set_start_method('spawn', force=True)
 
 # brain_tag = sys.argv[1]
 brain_tag = 'L73D766P9'
@@ -41,7 +43,6 @@ def main():
     # total = len(next_id[next_id!=None])
     total = len(dims[(next_id!=None) & (dims==0)])
     stitching_i = 0
-    loader_pool = Pool(processes=4)
     # if os.path.exists(remap_save_path):
     #     with open(remap_save_path, 'r') as jsonf:
     #         out_json = json.load(jsonf)
@@ -50,6 +51,9 @@ def main():
     for i in range(N):
         if next_id[i] is None: continue
         if dims[i] != 0: continue
+        loader_pool = Pool(processes=2)
+        graph_node_pool = Pool(processes=2)
+        graph_edge_pool = Pool(processes=2)
         stitching_i += 1
         pt = stitch_pts[i]
         dim = dims[i]
@@ -72,7 +76,13 @@ def main():
         pre_slice_image, next_slice_image = np.take(image, 0, axis=dim_vol), np.take(image, 1, axis=dim_vol)
         pre_slice_image, next_slice_image = norm_img(pre_slice_image), norm_img(next_slice_image)
         pre_flow, next_flow = np.take(flow, 0, axis=dim_vol+1), np.take(flow, 1, axis=dim_vol+1)
-        remap_dict = stitch_one_gap(graph_model, pre_mask, next_stack, pre_slice_image, next_slice_image, pre_flow, next_flow, dim_vol)
+        remap_dict = stitch_one_gap(graph_model, pre_mask, next_stack, pre_slice_image, next_slice_image, pre_flow, next_flow, dim_vol, graph_node_pool, graph_edge_pool)
+        loader_pool.close()
+        graph_edge_pool.close()
+        graph_node_pool.close()
+        loader_pool.join()
+        graph_edge_pool.join()
+        graph_node_pool.join()
         if remap_dict is None: continue
         out_json.append({
             'stitching_slices': [pre_slice_id, next_slice_id[0]],
@@ -85,10 +95,10 @@ def main():
         torch.cuda.empty_cache()
 
 
-def stitch_one_gap(model, pre_mask, next_stack, pre_slice, next_slice, pre_flow, next_flow, axis):
+def stitch_one_gap(model, pre_mask, next_stack, pre_slice, next_slice, pre_flow, next_flow, axis, graph_node_pool, graph_edge_pool):
     next_mask = np.take(next_stack, 0, axis=axis)
     print(datetime.datetime.now(), 'Build graph of nuclei between two slices')
-    input, orig_remaps = build_graph(pre_slice, next_slice, pre_mask, next_mask, pre_flow, next_flow, model.preprocess)
+    input, orig_remaps = build_graph(pre_slice, next_slice, pre_mask, next_mask, pre_flow, next_flow, model.preprocess, graph_node_pool, graph_edge_pool)
     if input is None: 
         print(datetime.datetime.now(), 'Skip, no nuclei in one slice')
         return None
@@ -177,14 +187,15 @@ def get_bbox(masks):
     return bboxes
 
 
-def build_graph(img1, img2, mask1, mask2, flow1, flow2, builder):
+def build_graph(img1, img2, mask1, mask2, flow1, flow2, builder, graph_node_pool, graph_edge_pool):
     mask1, remap1 = fastremap.renumber(mask1)
     mask2, remap2 = fastremap.renumber(mask2)
     bbox1 = get_bbox(mask1)
     bbox2 = get_bbox(mask2)
     if len(bbox1.shape) != 2 or len(bbox2.shape) != 2:
         return None, None
-    x, edge_index, edge_attr = builder([(img1, mask1.astype(np.int32), bbox1, flow1), (img2, mask2.astype(np.int32), bbox2, flow2)])
+    x, edge_index, edge_attr = builder([(img1, mask1.astype(np.int32), bbox1, flow1), (img2, mask2.astype(np.int32), bbox2, flow2)], 
+                                       graph_node_pool, graph_edge_pool)
     data = Data(
         x=x, 
         edge_index=edge_index,
