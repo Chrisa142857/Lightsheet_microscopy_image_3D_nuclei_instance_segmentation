@@ -22,6 +22,9 @@ class StitchModel(nn.Module):
         self.topn = 2
         self.multi_gpu = 2
         self.classifier = MLP(input_dim=tss_config['classifier_feats_dict']['edge_out_dim']*self.topn, fc_dims=[128, 64, 32, self.topn+1], use_batchnorm=True, dropout_p=0.3)
+        if self.multi_gpu:
+            self.pool1 = Pool(processes=self.multi_gpu)
+            self.pool2 = Pool(processes=self.multi_gpu)
 
     def preprocess(self, data):
         data1, data2 = data
@@ -45,8 +48,7 @@ class StitchModel(nn.Module):
             print(datetime.now(), "Get node feature of nuclei instance of next slice")
             node2, zflow2 = run_all_node(img2, mask2, flow2) # N2 x 27
         else:
-            with Pool(processes=2) as pool:
-                results = pool.starmap(multi_gpu_node_feat, [(img1.cuda(0), mask1.cuda(0), flow1.cuda(0), 'prev'), (img2.cuda(1), mask2.cuda(1), flow2.cuda(1), 'next')], )
+            results = self.pool1.starmap(multi_gpu_node_feat, [(img1.cuda(0), mask1.cuda(0), flow1.cuda(0), 'prev'), (img2.cuda(1), mask2.cuda(1), flow2.cuda(1), 'next')], )
             node1, zflow1, tag1 = results[0]
             node1, zflow1 = node1.to(self.device), zflow1.to(self.device)
             node2, zflow2, tag2 = results[1]
@@ -64,9 +66,10 @@ class StitchModel(nn.Module):
             split_p = int(N1/2)
             inputs = [(distance[:split_p].cuda(0), self.distance_thr, range(split_p), 0, [[], []], [[], []], self.topn, True),
                       (distance[split_p:].cuda(1), self.distance_thr, range(N1-split_p), 0, [[], []], [[], []], self.topn, True, split_p)]
-            with Pool(processes=2) as pool:
-                results = pool.starmap(build_one_graph, inputs)
-            out = [results[0][0][0] + results[1][0][0]]
+            results = self.pool2.starmap(build_one_graph, inputs)
+            out = [[]]
+            for ri in range(len(results)):
+                out[0] += results[ri][0][0]
         print(datetime.now(), "Compute edge feature")
         edge_index = [[], []]
         edge_attr = []
@@ -111,9 +114,9 @@ class StitchModel(nn.Module):
 
 
 def multi_gpu_node_feat(img, mask, flow, tag):
-    print(datetime.now(), "Get node feature of nuclei instance of %s slice" % tag)
+    # print(datetime.now(), "Get node feature of nuclei instance of %s slice" % tag)
     node, zflow = run_all_node(img, mask, flow) # N1 x 27
-    print(datetime.now(), "Done %s slice" % tag)
+    # print(datetime.now(), "Done %s slice" % tag)
     del img, mask, flow
     return node.detach().cpu(), zflow.detach().cpu(), tag
 

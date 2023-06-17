@@ -41,6 +41,7 @@ def main():
     # total = len(next_id[next_id!=None])
     total = len(dims[(next_id!=None) & (dims==0)])
     stitching_i = 0
+    loader_pool = Pool(processes=4)
     # if os.path.exists(remap_save_path):
     #     with open(remap_save_path, 'r') as jsonf:
     #         out_json = json.load(jsonf)
@@ -63,9 +64,9 @@ def main():
         slice = seg[indices, ys:ye, xs:xe]
         pre_img_fn = flow_fnlist[pre_slice_id].split('_resample')[0]+'.tif'
         next_img_fn = flow_fnlist[next_slice_id[0]].split('_resample')[0]+'.tif'
-        image = np.stack([np.asarray(utils.imread(os.path.join(img_r, pre_img_fn))), 
-                          np.asarray(utils.imread(os.path.join(img_r, next_img_fn)))])
-        flow = load_flow(brain_flow_dir, pre_slice_id, next_slice_id[0], ys, ye, xs, xe)
+        image = list(loader_pool.imap(utils.imread, [os.path.join(img_r, pre_img_fn), os.path.join(img_r, next_img_fn)]))
+        image = np.stack([np.asarray(img) for img in image])
+        flow = load_flow(brain_flow_dir, pre_slice_id, next_slice_id[0], ys, ye, xs, xe, loader_pool)
         dim_vol= dim // 2
         pre_mask, next_stack = np.take(slice, 0, axis=dim_vol), np.take(slice, [ii for ii in range(1, len(indices))], axis=dim_vol)
         pre_slice_image, next_slice_image = np.take(image, 0, axis=dim_vol), np.take(image, 1, axis=dim_vol)
@@ -204,12 +205,12 @@ def sort_fs(fs, get_i):
     return out
 
 
-def load_flow(fdir, zmin, zmax, ymin, ymax, xmin, xmax):
+def load_flow(fdir, zmin, zmax, ymin, ymax, xmin, xmax, pool):
     flist = sort_fs([fn for fn in os.listdir(fdir) if fn.endswith('.npy')], get_i_xy)
     fs = [fn for fn in flist if zmin <= get_i_xy(fn) < zmax+1]
-    with Pool(processes=4) as pool:
+    # with Pool(processes=4) as pool:
         # data = list(tqdm(pool.imap(load_data, [(os.path.join(fdir, fn), ymin, ymax, xmin, xmax) for fn in fs]), total=len(fs), desc="Load flow")) # [3 x Y x X]
-        data = list(pool.imap(load_data, [(os.path.join(fdir, fn), ymin, ymax, xmin, xmax) for fn in fs])) # [3 x Y x X]
+    data = list(pool.imap(load_data, [(os.path.join(fdir, fn), ymin, ymax, xmin, xmax) for fn in fs])) # [3 x Y x X]
     return np.stack(data, axis=1)[:3]
 
 
