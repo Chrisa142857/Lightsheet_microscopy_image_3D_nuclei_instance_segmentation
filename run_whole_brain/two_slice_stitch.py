@@ -5,6 +5,10 @@ from tss_model import MLP, TSS, get_model_config
 import torch.nn.functional as F
 from tqdm import trange
 from datetime import datetime
+from os import getpid
+import os
+from signal import SIGKILL
+import torch.multiprocessing as mp
 
 class StitchModel(nn.Module):
     '''
@@ -18,11 +22,8 @@ class StitchModel(nn.Module):
         tss_config = get_model_config()
         self.nets = TSS(model_params=tss_config)
         self.topn = 2
-        self.multi_gpu = 2
+        self.gpu_num = 2
         self.classifier = MLP(input_dim=tss_config['classifier_feats_dict']['edge_out_dim']*self.topn, fc_dims=[128, 64, 32, self.topn+1], use_batchnorm=True, dropout_p=0.3)
-        # if self.multi_gpu:
-        #     self.pool1 = Pool(processes=self.multi_gpu)
-        #     self.pool2 = Pool(processes=self.multi_gpu)
 
     def preprocess(self, data, pool1=None, pool2=None):
         data1, data2 = data
@@ -40,35 +41,43 @@ class StitchModel(nn.Module):
         assert (not (bbox1[:, 2] == 0).any()) & (not (bbox1[:, 3] == 0).any())
         assert (not (bbox2[:, 2] == 0).any()) & (not (bbox2[:, 3] == 0).any())
         N1 = len(bbox1)
-        if self.multi_gpu == 0:
+        if self.gpu_num == 0:
             print(datetime.now(), "Get node feature of nuclei instance of previous slice")
             node1, zflow1 = run_all_node(img1, mask1, flow1) # N1 x 27
             print(datetime.now(), "Get node feature of nuclei instance of next slice")
             node2, zflow2 = run_all_node(img2, mask2, flow2) # N2 x 27
         else:
-            results = pool1.starmap(multi_gpu_node_feat, [(img1.cuda(0), mask1.cuda(0), flow1.cuda(0), 'prev'), (img2.cuda(1), mask2.cuda(1), flow2.cuda(1), 'next')], )
-            node1, zflow1, tag1 = results[0]
-            node1, zflow1 = node1.to(self.device), zflow1.to(self.device)
-            node2, zflow2, tag2 = results[1]
-            node2, zflow2 = node2.to(self.device), zflow2.to(self.device)
-            assert tag1 == 'prev' and tag2 == 'next'
+            results = pool1.starmap(multi_gpu_node_feat, [
+                (img1.cuda(0), mask1.cuda(0), flow1.cuda(0), 'prev'), 
+                (img2.cuda(1), mask2.cuda(1), flow2.cuda(1), 'next')
+            ], )
+            node1, zflow1, pid1 = results[0]
+            print(datetime.now(), f"Complete child process {pid1} of getting node feature", flush=True)
+            node1, zflow1 = node1.detach().to(self.device), zflow1.detach().to(self.device)
+            node2, zflow2, pid2 = results[1]
+            print(datetime.now(), f"Complete child process {pid2} of getting node feature", flush=True)
+            node2, zflow2 = node2.detach().to(self.device), zflow2.detach().to(self.device)
                 
-        x = torch.cat([node1, node2]).float().to(self.device) # N1+N2 x node_feat_size
-        print(datetime.now(), "Compute distance between two node sets to find N-neighbors")
-        # distance = get_distance(bbox1.to('cpu'), bbox2.to('cpu')).to(self.device) # N1 x N2
-        distance = get_distance_low_ram(bbox1.to('cpu'), bbox2.to('cpu'))#.to(self.device) # N1 x N2
-        print(datetime.now(), "Determine edge index based on deistance")
-        if self.multi_gpu == 0:
+        x = torch.cat([node1, node2]).float() # N1+N2 x node_feat_size
+        print(datetime.now(), "Compute distance between two node sets to find N-neighbors", flush=True)
+        if self.gpu_num == 0:
+            # distance = get_distance(bbox1.to('cpu'), bbox2.to('cpu')).to(self.device) # N1 x N2
+            distance = get_distance_low_ram(bbox1.to('cpu'), bbox2.to('cpu'))#.to(self.device) # N1 x N2
+            print(datetime.now(), "Determine edge index based on deistance")
             out, _ = build_one_graph(distance, self.distance_thr, range(N1), 0, [[], []], [[], []], topn=self.topn)
         else:
-            split_p = int(N1/2)
-            inputs = [(distance[:split_p].cuda(0), self.distance_thr, range(split_p), 0, [[], []], [[], []], self.topn, True),
-                      (distance[split_p:].cuda(1), self.distance_thr, range(N1-split_p), 0, [[], []], [[], []], self.topn, True, split_p)]
-            results = pool2.starmap(build_one_graph, inputs)
-            out = [[]]
-            for ri in range(len(results)):
-                out[0] += results[ri][0][0]
-        print(datetime.now(), "Compute edge feature")
+            out = []
+            inputs = []
+            print(datetime.now(), "Determine edge index based on deistance, parallely", flush=True)
+            for i in range(len(bbox1)):
+                inputs.append((((bbox1[i, :2] - bbox2[:, :2]) ** 2).sum(1).sqrt().cuda(i%self.gpu_num), i, self.topn))
+                if len(inputs) == self.gpu_num: 
+                   out.extend(pool2.starmap(build_one_graph_low_ram, inputs))
+                   inputs = []
+            if len(inputs) > 0: 
+                out.extend(pool2.starmap(build_one_graph_low_ram, inputs))
+            out = [out]
+        print(datetime.now(), "Compute edge feature", flush=True)
         edge_index = [[], []]
         edge_attr = []
         for indicies in out[0]:
@@ -92,7 +101,7 @@ class StitchModel(nn.Module):
         #     for ind in indicies[1:]])
         edge_index = torch.LongTensor(edge_index).to(self.device)
         edge_attr = torch.stack(edge_attr).to(self.device)
-        print(datetime.now(), "Done")
+        print(datetime.now(), "Done graph building", flush=True)
         return x, edge_index, edge_attr
 
     def forward(self, data):
@@ -116,7 +125,8 @@ def multi_gpu_node_feat(img, mask, flow, tag):
     node, zflow = run_all_node(img, mask, flow) # N1 x 27
     # print(datetime.now(), "Done %s slice" % tag)
     del img, mask, flow
-    return node.detach().cpu(), zflow.detach().cpu(), tag
+    pid = mp.current_process().pid
+    return node.detach().cpu(), zflow.detach().cpu(), pid
 
 
 def build_one_graph(distance, thr, indecies, dim, used, out, topn=5, multi_gpu=False, split_p=None):
@@ -129,8 +139,15 @@ def build_one_graph(distance, thr, indecies, dim, used, out, topn=5, multi_gpu=F
             out[dim].append([i+split_p] + new_indecies.tolist())
         else:
             out[dim].append([i] + new_indecies.tolist())
-    if multi_gpu: del distance
+    if multi_gpu: 
+        del distance
+        return out, used, mp.current_process().pid
     return out, used
+
+
+def build_one_graph_low_ram(distance, i, topn=5):
+    new_indecies = torch.argsort(distance)[:topn]
+    return [i] + new_indecies.tolist()
 
 
 def run_all_node(img, mask, flows, node_feat_size=200):
@@ -169,7 +186,7 @@ def get_distance_low_ram(bbox1, bbox2):
     N2 = len(bbox2)
     distance = torch.zeros(N1, 2, N2, device=bbox1.device)
     for i in range(N1):
-        distance[i] = (bbox1[i, :2] - bbox2[:, :2]).T
+        distance[i] = (bbox1[i, :2] - bbox2[:, :2]).T#.detach().cpu()
     distance = torch.sqrt((distance ** 2).sum(1)) # N1 x N2
     return distance
 
@@ -195,3 +212,10 @@ def hist_flow_vector(flows):
     hist = torch.stack(hist)
     return hist
 
+def reuse_multiprocess_pool(pool):
+    processes = pool._pool[:]
+    for _curr_process in processes:
+        pid = _curr_process.pid
+        _curr_process.terminate()
+        pool._pool.remove(_curr_process)
+    pool._repopulate_pool()
