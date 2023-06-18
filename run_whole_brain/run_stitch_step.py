@@ -22,7 +22,7 @@ brain_flow_dir = '%s/flow_3d' % r
 remap_save_path = '%s/%s_remap.json' % (r, brain_tag)
 device = 'cuda:1' # 'cuda:1'
 
-def main():    
+def main():
     print(datetime.datetime.now(), "Start python program f{sys.argv}", flush=True)
     max_nuclei_size = (10, 30, 30) # 
     graph_model = StitchModel(device)
@@ -39,24 +39,26 @@ def main():
     N = stitch_pts.shape[0]
     next_id = [None] + [stitch_pts[i][0]+1 for i in range(1, N-1)] + [None]
     total = len(dims[(next_id!=None) & (dims==0)])
-    stitching_i = 8
-    # if os.path.exists(remap_save_path):
-    #     with open(remap_save_path, 'r') as jsonf:
-    #         out_json = json.load(jsonf)
-    # else:
-    out_json = []
-    for i in range(9, N):
+    stitching_i = 0
+    if os.path.exists(remap_save_path):
+        with open(remap_save_path, 'r') as jsonf:
+            out_json = json.load(jsonf)
+        complete_stitch_i = [o['complete_stitch_i'] for o in out_json]
+        print(datetime.datetime.now(), f"Already done stitching slices {[[stitch_pts[i][0], next_id[i]] for i in complete_stitch_i]}, skip them")
+    else:
+        out_json = []
+    for i in range(N):
         if next_id[i] is None: continue
         if dims[i] != 0: continue
+        stitching_i += 1
+        if i in complete_stitch_i: continue
         loader_pool = Pool(processes=2)
         graph_node_pool = Pool(processes=2)
         graph_edge_pool = Pool(processes=2)
-        stitching_i += 1
         pt = stitch_pts[i]
         dim = dims[i]
         pre_slice_id = pt[dim]
         next_slice_id = [next_id[i]]
-        # next_slice_id = [next_slice_id.item()+j for j in range(max_nuclei_size[dim//2])]
         indices = [pre_slice_id] + next_slice_id
         print(datetime.datetime.now(), "[%03d/%d] Start stitch slices %s" % (stitching_i, total, indices), flush=True)
         zs, ze, ys, ye, xs, xe = pt # ~s and ~e are the same in the dim of stitching plane, e.g., zs = ze = 64
@@ -85,7 +87,8 @@ def main():
             'stitching_slices': [pre_slice_id, next_slice_id[0]],
             'stitching_dim': dim_vol,
             'plane_range': [zs, ze, ys, ye, xs, xe],
-            'remap': remap_dict
+            'remap': remap_dict,
+            'complete_stitch_i': i
         })
         with open(remap_save_path,'w') as file:
             file.write(json.dumps(out_json, indent=4, cls=NpEncoder))

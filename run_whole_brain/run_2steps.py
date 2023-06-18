@@ -15,7 +15,10 @@ num_cpus = mp.cpu_count()-1
 print(datetime.now(), "Pipeline start with %d CPUs" % (num_cpus+1))
 
 def main():
-    slicen_3d = 12
+    print(datetime.now(), "Start python program f{sys.argv}", flush=True)
+    # 2D to 3D: one chunk has 12 slices, based on the RAM limit. Different number has no effect to results
+    slicen_3d = 12 
+    ##
     dir_n = 'flow_3d'
     pair_tag = 'pair15'
     # brain_tag = 'L73D766P4' # L73D766P9
@@ -27,7 +30,6 @@ def main():
     trained_model = 'downloads/train_data/data_P4_P15_rescaled-as-P15/train/models/cellpose_residual_on_style_on_concatenation_off_train_2023_05_29_22_42_54.153497_epoch_21'
     device = torch.device('cuda:%d' % int(sys.argv[4]))
     model = NISModel(device=device, pretrained_model=trained_model)
-    # model = NISModel(device=torch.device('cuda:0'), pretrained_model=trained_model)
     save_r = '%s/%s' % (save_r, pair_tag)
     os.makedirs(save_r, exist_ok=True)
     save_r = '%s/%s' % (save_r, brain_tag)

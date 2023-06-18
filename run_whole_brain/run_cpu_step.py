@@ -8,7 +8,9 @@ from tqdm import tqdm
 from unet import NISModel
 
 def main():
+    print(datetime.now(), "Start python program f{sys.argv}", flush=True)
     save_ftail = '_NIS_results.h5'
+    # 3D flow to instance mask: one chunk has 48 slices, based on the RAM limit. More slices less whole brain gaps.
     chunk_depth = 48
     ## prev steps setting #############################
     dir_n = 'flow_3d'
@@ -122,9 +124,6 @@ def compute_masks(dP, cellprob, niter,
         
         #calculate masks
         mask, coord, labels, vols, centers = get_masks(p, iscell=cp_mask)
-            
-        # if mask.max() < 2**16:
-        #     mask = mask.astype(np.uint16)
 
     else: # nothing to compute, just make it compatible
         print(datetime.now(), "No nuclei in this chunk, return None")
@@ -143,19 +142,6 @@ def follow_flows(dP, niter=200):
     return p, inds
 
 def steps3D(p, dP, inds, niter):
-    ## Original code
-    # shape = p.shape[1:]
-    # for t in trange(niter):
-    #     #pi = p.astype(np.int32)
-    #     for j in trange(inds.shape[0]):
-    #         z = inds[j,0]
-    #         y = inds[j,1]
-    #         x = inds[j,2]
-    #         p0, p1, p2 = int(p[0,z,y,x]), int(p[1,z,y,x]), int(p[2,z,y,x])
-    #         p[0,z,y,x] = min(shape[0]-1, max(0, p[0,z,y,x] + dP[0,p0,p1,p2]))
-    #         p[1,z,y,x] = min(shape[1]-1, max(0, p[1,z,y,x] + dP[1,p0,p1,p2]))
-    #         p[2,z,y,x] = min(shape[2]-1, max(0, p[2,z,y,x] + dP[2,p0,p1,p2]))
-    # return p
     ## ChatGPT optimization
     shape = p.shape[1:]
     inds = inds.long()
