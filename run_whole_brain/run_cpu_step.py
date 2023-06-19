@@ -8,7 +8,7 @@ from tqdm import tqdm
 from unet import NISModel
 
 def main():
-    print(datetime.now(), "Start python program f{sys.argv}", flush=True)
+    print(datetime.now(), f"Start python program {sys.argv}", flush=True)
     save_ftail = '_NIS_results.h5'
     # 3D flow to instance mask: one chunk has 48 slices, based on the RAM limit. More slices less whole brain gaps.
     chunk_depth = 48
