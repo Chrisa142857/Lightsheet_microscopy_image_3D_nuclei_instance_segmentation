@@ -76,7 +76,7 @@ class StitchModel(nn.Module):
                    inputs = []
             if len(inputs) > 0: 
                 out.extend(pool2.starmap(build_one_graph_low_ram, inputs))
-            out = [out]
+            out = [torch.LongTensor(out)]
         print(datetime.now(), "Compute edge feature", flush=True)
         edge_index = [[], []]
         edge_attr = []
@@ -90,19 +90,10 @@ class StitchModel(nn.Module):
                     torch.stack([zflow1[indicies[0]], zflow2[ind], bbox1[indicies[0], 0] - bbox2[ind, 0], bbox1[indicies[0], 1] - bbox2[ind, 1], bbox1[indicies[0], 2] / bbox2[ind, 2], bbox1[indicies[0], 3] / bbox2[ind, 3]]),
                 ])
             for ind in indicies[1:]])
-        # for indicies in out[1]:
-        #     edge_index[0].extend([indicies[0]+N1 for _ in range(len(indicies)-1)])
-        #     edge_index[1].extend([ind for ind in indicies[1:]])
-        #     edge_attr.extend([
-        #         torch.cat([
-        #             # hist1[ind], hist2[indicies[0]],
-        #             torch.stack([zflow1[ind], zflow2[indicies[0]], bbox1[ind, 0] - bbox2[indicies[0], 0], bbox1[ind, 1] - bbox2[indicies[0], 1], bbox1[ind, 2] / bbox2[indicies[0], 2], bbox1[ind, 3] / bbox2[indicies[0], 3]]),
-        #         ])
-        #     for ind in indicies[1:]])
         edge_index = torch.LongTensor(edge_index).to(self.device)
         edge_attr = torch.stack(edge_attr).to(self.device)
         print(datetime.now(), "Done graph building", flush=True)
-        return x, edge_index, edge_attr
+        return x, edge_index, edge_attr, out[0]
 
     def forward(self, data):
         # x, edge_index, edge_attr = self.preprocess(data)

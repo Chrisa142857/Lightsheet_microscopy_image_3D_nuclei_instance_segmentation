@@ -12,8 +12,8 @@ from two_slice_stitch import StitchModel
 from torch.multiprocessing import Pool
 torch.multiprocessing.set_start_method('spawn', force=True)
 
-# brain_tag = sys.argv[1]
-brain_tag = 'L73D766P9'
+brain_tag = sys.argv[1]
+# brain_tag = 'L73D766P9'
 pair_tag = 'pair15'
 r = '/lichtman/ziquanw/Lightsheet/results/P4/%s/%s' % (pair_tag, brain_tag)
 img_r = '/lichtman/Felix/Lightsheet/P4/%s/output_%s/stitched' % (pair_tag, brain_tag)
@@ -23,7 +23,7 @@ remap_save_path = '%s/%s_remap.json' % (r, brain_tag)
 device = 'cuda:1' # 'cuda:1'
 
 def main():
-    print(datetime.datetime.now(), "Start python program f{sys.argv}", flush=True)
+    print(datetime.datetime.now(), f"Start python program {sys.argv}", flush=True)
     max_nuclei_size = (10, 30, 30) # 
     graph_model = StitchModel(device)
     graph_model.to(device)
@@ -47,6 +47,7 @@ def main():
         print(datetime.datetime.now(), f"Already done stitching slices {[[stitch_pts[i][0], next_id[i]] for i in complete_stitch_i]}, skip them")
     else:
         out_json = []
+        complete_stitch_i = []
     for i in range(N):
         if next_id[i] is None: continue
         if dims[i] != 0: continue
@@ -80,8 +81,11 @@ def main():
         pre_slice_image, next_slice_image = norm_img(pre_slice_image), norm_img(next_slice_image)
         pre_flow, next_flow = np.take(flow, 0, axis=dim_vol+1), np.take(flow, 1, axis=dim_vol+1)
         remap_dict = stitch_one_gap(graph_model, pre_mask, next_stack, pre_slice_image, next_slice_image, pre_flow, next_flow, dim_vol, graph_node_pool, graph_edge_pool)
-        get_rid_of_zoombie_process(graph_edge_pool)
-        get_rid_of_zoombie_process(graph_node_pool)
+        try:
+            get_rid_of_zoombie_process(graph_edge_pool)
+            get_rid_of_zoombie_process(graph_node_pool)
+        except:
+            pass
         if remap_dict is None: continue
         out_json.append({
             'stitching_slices': [pre_slice_id, next_slice_id[0]],
@@ -98,7 +102,7 @@ def main():
 def stitch_one_gap(model, pre_mask, next_stack, pre_slice, next_slice, pre_flow, next_flow, axis, graph_node_pool, graph_edge_pool):
     next_mask = np.take(next_stack, 0, axis=axis)
     print(datetime.datetime.now(), 'Build graph of nuclei between two slices', flush=True)
-    input, orig_remaps = build_graph(pre_slice, next_slice, pre_mask, next_mask, pre_flow, next_flow, model.preprocess, graph_node_pool, graph_edge_pool)
+    input, orig_remaps, topn_index = build_graph(pre_slice, next_slice, pre_mask, next_mask, pre_flow, next_flow, model.preprocess, graph_node_pool, graph_edge_pool)
     if input is None: 
         print(datetime.datetime.now(), 'Skip, no nuclei in one slice', flush=True)
         return None
@@ -107,7 +111,6 @@ def stitch_one_gap(model, pre_mask, next_stack, pre_slice, next_slice, pre_flow,
         try:
             edge_pred = model(input)
             pred = edge_pred.argmax(1).detach().cpu()
-            
         except:
             print(datetime.datetime.now(), 'Graph model out of CUDA mem, using CPU', flush=True)
             model = model.cpu()
@@ -117,12 +120,17 @@ def stitch_one_gap(model, pre_mask, next_stack, pre_slice, next_slice, pre_flow,
     print(datetime.datetime.now(), 'Decode the output as a ID remap dict', flush=True)
     edge_index = input.edge_index.detach().cpu()
     is_new_cell = pred == 0
-    node0 = edge_index[0].unique() # N0
-    edge_index[1] = edge_index[1] - edge_index[0].max() - 1 # recover mask1 node id
-    node1 = torch.stack([edge_index[1, edge_index[0]==nid] for nid in node0]) # N1
-    node1 = torch.index_select(node1[~is_new_cell], 1, pred[~is_new_cell]-1).diag()#.detach().cpu() # N1
-    node0 = node0[~is_new_cell]
+    topn_index = topn_index[~is_new_cell]
+    pred = pred[~is_new_cell] - 1
     edge_pred = edge_pred[~is_new_cell]
+    node0 = topn_index[:, 0]
+    node1 = topn_index[:, 1:]
+    node1 = list(node1)
+    for i in range(len(node1)):
+        node1[i] = node1[i][pred[i]]
+    node1 = torch.stack(node1)
+    # node1 = torch.index_select(node1[~is_new_cell], 1, pred[~is_new_cell]-1).diag()#.detach().cpu() # N1
+    # node0 = node0[~is_new_cell]
     ## get new id of next stack
     oldid2newid = {}
     for nid in node1.unique():
@@ -207,14 +215,14 @@ def build_graph(img1, img2, mask1, mask2, flow1, flow2, builder, graph_node_pool
     bbox2 = get_bbox(mask2)
     if len(bbox1.shape) != 2 or len(bbox2.shape) != 2:
         return None, None
-    x, edge_index, edge_attr = builder([(img1, mask1.astype(np.int32), bbox1, flow1), (img2, mask2.astype(np.int32), bbox2, flow2)], 
+    x, edge_index, edge_attr, topn_index = builder([(img1, mask1.astype(np.int32), bbox1, flow1), (img2, mask2.astype(np.int32), bbox2, flow2)], 
                                        graph_node_pool, graph_edge_pool)
     data = Data(
         x=x, 
         edge_index=edge_index,
         edge_attr=edge_attr
     )
-    return data, [remap1, remap2]
+    return data, [remap1, remap2], topn_index
 
 
 def get_i_xy(fn):

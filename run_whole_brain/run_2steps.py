@@ -15,7 +15,7 @@ num_cpus = mp.cpu_count()-1
 print(datetime.now(), "Pipeline start with %d CPUs" % (num_cpus+1))
 
 def main():
-    print(datetime.now(), "Start python program f{sys.argv}", flush=True)
+    print(datetime.now(), f"Start python program {sys.argv}", flush=True)
     # 2D to 3D: one chunk has 12 slices, based on the RAM limit. Different number has no effect to results
     slicen_3d = 12 
     ##
