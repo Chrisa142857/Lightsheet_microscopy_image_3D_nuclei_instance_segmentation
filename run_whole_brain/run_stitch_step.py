@@ -9,20 +9,19 @@ import datetime, sys
 import utils
 from two_slice_stitch import StitchModel
 
-from torch.multiprocessing import Pool
-torch.multiprocessing.set_start_method('spawn', force=True)
-
-brain_tag = sys.argv[1]
-# brain_tag = 'L73D766P9'
-pair_tag = 'pair15'
-r = '/lichtman/ziquanw/Lightsheet/results/P4/%s/%s' % (pair_tag, brain_tag)
-img_r = '/lichtman/Felix/Lightsheet/P4/%s/output_%s/stitched' % (pair_tag, brain_tag)
-brain_result_path = '%s/%s_NIS_results.h5' % (r, brain_tag)
-brain_flow_dir = '%s/flow_3d' % r
-remap_save_path = '%s/%s_remap.json' % (r, brain_tag)
-device = 'cuda:1' # 'cuda:1'
 
 def main():
+    from torch.multiprocessing import Pool
+    torch.multiprocessing.set_start_method('spawn', force=True)
+    brain_tag = sys.argv[1]
+    # brain_tag = 'L73D766P9'
+    pair_tag = 'pair15'
+    r = '/lichtman/ziquanw/Lightsheet/results/P4/%s/%s' % (pair_tag, brain_tag)
+    img_r = '/lichtman/Felix/Lightsheet/P4/%s/output_%s/stitched' % (pair_tag, brain_tag)
+    brain_result_path = '%s/%s_NIS_results.h5' % (r, brain_tag)
+    brain_flow_dir = '%s/flow_3d' % r
+    remap_save_path = '%s/%s_remap.json' % (r, brain_tag)
+    device = 'cuda:1' # 'cuda:1'
     print(datetime.datetime.now(), f"Start python program {sys.argv}", flush=True)
     max_nuclei_size = (10, 30, 30) # 
     graph_model = StitchModel(device)

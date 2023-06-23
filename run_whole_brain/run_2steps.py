@@ -20,15 +20,15 @@ def main():
     slicen_3d = 12 
     ##
     dir_n = 'flow_3d'
-    pair_tag = 'pair15'
     # brain_tag = 'L73D766P4' # L73D766P9
     brain_tag = sys.argv[1]
+    pair_tag = sys.argv[2] # 'pair15'
     save_r = '/lichtman/ziquanw/Lightsheet/results/P4'
     std_resolution = (2.5, .75, .75)
     in_resolution = (4, .75, .75)
     scale_r = [i/s for i, s in zip(in_resolution, std_resolution)]
     trained_model = 'downloads/train_data/data_P4_P15_rescaled-as-P15/train/models/cellpose_residual_on_style_on_concatenation_off_train_2023_05_29_22_42_54.153497_epoch_21'
-    device = torch.device('cuda:%d' % int(sys.argv[4]))
+    device = torch.device('cuda:%d' % int(sys.argv[3]))
     model = NISModel(device=device, pretrained_model=trained_model)
     save_r = '%s/%s' % (save_r, pair_tag)
     os.makedirs(save_r, exist_ok=True)
@@ -45,8 +45,10 @@ def main():
     depth_start = 1
     for f in orig_fs:
         fs[filename_to_depth(f, depth_start)] = f
-    start = int(sys.argv[2])
-    end = int(sys.argv[3])
+    # start = int(sys.argv[2])
+    # end = int(sys.argv[3])
+    start = 0
+    end = -1
     dset = BrainSliceDataset(fs[start:end]) if end > 0 else BrainSliceDataset(fs[start:])
     # dloader = DataLoader(dset,batch_size=1,shuffle=False,num_workers=8,collate_fn=collate_fn_pass)
     rescaled_chunk_depth = torch.nn.functional.interpolate(torch.zeros(1, 1, slicen_3d, 3, 3), scale_factor=scale_r, mode='nearest-exact').squeeze().shape[0]
