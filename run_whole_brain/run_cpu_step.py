@@ -14,9 +14,10 @@ def main():
     chunk_depth = 48
     ## prev steps setting #############################
     dir_n = 'flow_3d'
-    pair_tag = 'pair15'
     # brain_tag = 'L73D766P9' # L73D766P4
     brain_tag = sys.argv[1]
+    # pair_tag = 'pair15'
+    pair_tag = sys.argv[2]
     save_r = '/lichtman/ziquanw/Lightsheet/results/P4'
     save_r = '%s/%s' % (save_r, pair_tag)
     save_r = '%s/%s' % (save_r, brain_tag)
@@ -88,7 +89,7 @@ def sort_filenames(fs):
     return fs
 
 def compute_one_chunk(all_paths, zmin, zmax, niter):
-    with mp.Pool(processes=4) as pool:
+    with mp.Pool(processes=12) as pool:
         paths = [path for path in all_paths if zmin <= filename_to_depth(path) < zmax]
         data = list(tqdm(pool.imap(np.load, [path for path in paths]), total=len(paths), desc=f"Load from slice {zmin} to {zmax}")) # [3 x Y x X]
     data = torch.from_numpy(np.stack(data, axis=1))
