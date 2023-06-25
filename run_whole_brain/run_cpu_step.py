@@ -124,7 +124,9 @@ def compute_masks(dP, cellprob, niter,
             return None
         
         #calculate masks
-        mask, coord, labels, vols, centers = get_masks(p, iscell=cp_mask)
+        out = get_masks(p, iscell=cp_mask)
+        if out is None: return None
+        mask, coord, labels, vols, centers = out
 
     else: # nothing to compute, just make it compatible
         print(datetime.now(), "No nuclei in this chunk, return None")
@@ -196,6 +198,7 @@ def get_masks(p, iscell=None, rpad=20):
     print(datetime.now(), 'Extend nuclei')
     #####################################
     pix = list(pix)
+    if len(pix) == 0: return None
     if dims==3: # expand coordinates, center is (1, 1)
         expand = torch.nonzero(torch.ones((3,3,3))).T
     else:
@@ -224,7 +227,6 @@ def get_masks(p, iscell=None, rpad=20):
                 
     print(datetime.now(), 'Get coordinates and label mask')
     #####################################   
-    coords = []
     M = torch.zeros(*shape, dtype=torch.long)
     remove_c = 0
     big = np.prod(shape0) * 0.4
@@ -232,6 +234,7 @@ def get_masks(p, iscell=None, rpad=20):
         pflows[i] = pflows[i] + rpad
     fg = torch.zeros(*shape, dtype=bool)
     fg[tuple(pflows)] = True
+    coords = []
     labels = []
     vols = []
     centers = []
