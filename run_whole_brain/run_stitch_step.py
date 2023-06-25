@@ -15,7 +15,8 @@ def main():
     torch.multiprocessing.set_start_method('spawn', force=True)
     brain_tag = sys.argv[1]
     # brain_tag = 'L73D766P9'
-    pair_tag = 'pair15'
+    # pair_tag = 'pair15'
+    pair_tag = sys.argv[2]
     r = '/lichtman/ziquanw/Lightsheet/results/P4/%s/%s' % (pair_tag, brain_tag)
     img_r = '/lichtman/Felix/Lightsheet/P4/%s/output_%s/stitched' % (pair_tag, brain_tag)
     brain_result_path = '%s/%s_NIS_results.h5' % (r, brain_tag)
@@ -97,6 +98,12 @@ def main():
             file.write(json.dumps(out_json, indent=4, cls=NpEncoder))
         torch.cuda.empty_cache()
 
+    loader_pool.close()
+    del loader_pool
+    graph_node_pool.close()
+    del graph_node_pool
+    graph_edge_pool.close()
+    del graph_edge_pool
 
 def stitch_one_gap(model, pre_mask, next_stack, pre_slice, next_slice, pre_flow, next_flow, axis, graph_node_pool, graph_edge_pool):
     next_mask = np.take(next_stack, 0, axis=axis)
