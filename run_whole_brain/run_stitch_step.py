@@ -220,7 +220,7 @@ def build_graph(img1, img2, mask1, mask2, flow1, flow2, builder, graph_node_pool
     bbox1 = get_bbox(mask1)
     bbox2 = get_bbox(mask2)
     if len(bbox1.shape) != 2 or len(bbox2.shape) != 2:
-        return None, None
+        return None, None, None
     x, edge_index, edge_attr, topn_index = builder([(img1, mask1.astype(np.int32), bbox1, flow1), (img2, mask2.astype(np.int32), bbox2, flow2)], 
                                        graph_node_pool, graph_edge_pool)
     data = Data(
