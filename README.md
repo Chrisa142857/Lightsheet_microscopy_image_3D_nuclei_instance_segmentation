@@ -12,8 +12,8 @@ Multiple whole brains of mouse in different grown stage. Each brain has > 1000x9
 ### Performance and time cost:
  - Recall > 90% 
  - Precision > 90%
- - Time cose < 24 hr/brain
+ - Time cost < 24 hr/brain
 
 ### Codes availability
  - [x] Train 2D Unet
- - [ ] Run whole brain
+ - [x] Run whole brain
