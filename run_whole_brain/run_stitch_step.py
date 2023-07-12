@@ -22,7 +22,7 @@ def main():
     brain_result_path = '%s/%s_NIS_results.h5' % (r, brain_tag)
     brain_flow_dir = '%s/flow_3d' % r
     remap_save_path = '%s/%s_remap.json' % (r, brain_tag)
-    device = 'cuda:1' # 'cuda:1'
+    device = 'cuda:0' # 'cuda:1'
     print(datetime.datetime.now(), f"Start python program {sys.argv}", flush=True)
     max_nuclei_size = (10, 30, 30) # 
     graph_model = StitchModel(device)
