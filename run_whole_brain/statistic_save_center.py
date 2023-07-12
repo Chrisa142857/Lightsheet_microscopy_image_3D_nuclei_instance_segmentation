@@ -62,11 +62,11 @@ def main():
 
         roi_label = roi_mask[tuple(nis_centers.long().T)]
         roi_id = roi_label.unique()
+        center_loc = roi_label==save_roi_id
         if 0 in roi_id:
-            center_loc = roi_label!=0 & roi_label==save_roi_id
-            roi_label = roi_label[roi_label!=0]
-        else:
-            center_loc = roi_label==save_roi_id
+            is_fg = roi_label!=0
+            center_loc = is_fg & center_loc
+            roi_label = roi_label[is_fg]
         print(datetime.now(), f'Statistic {len(roi_label)} nuclei in {len(roi_id)-1} different regions')
         bincount = roi_label.bincount()
         assert bincount.sum() == len(roi_label), f'bincount error, where bincount.sum()={bincount.sum()} and len(roi_label)={len(roi_label)}'
