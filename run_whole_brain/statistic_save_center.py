@@ -63,7 +63,10 @@ def main():
         roi_label = roi_mask[tuple(nis_centers.long().T)]
         roi_id = roi_label.unique()
         if 0 in roi_id:
+            center_loc = roi_label!=0 & roi_label==save_roi_id
             roi_label = roi_label[roi_label!=0]
+        else:
+            center_loc = roi_label==save_roi_id
         print(datetime.now(), f'Statistic {len(roi_label)} nuclei in {len(roi_id)-1} different regions')
         bincount = roi_label.bincount()
         assert bincount.sum() == len(roi_label), f'bincount error, where bincount.sum()={bincount.sum()} and len(roi_label)={len(roi_label)}'
@@ -79,8 +82,9 @@ def main():
             o['roi_count'][i.item()] = c.item()
         
         out.append(o)
+        
         center_pt_head = 'ID,X,Y,Z\n'
-        center_csv = str(torch.cat([nis_labels[roi_label==save_roi_id].unsqueeze(1), center_pt[roi_label==save_roi_id, :]], -1).tolist())
+        center_csv = str(torch.cat([nis_labels[center_loc].unsqueeze(1), center_pt[center_loc, :]], -1).tolist())
         center_csv = center_csv[2:-2].replace('], [','\n')
         with open(os.path.join(_r, 'center_pts_%s_%s_RoI%d.csv' % (pair_tag, brain_tag, save_roi_id)), 'w') as f:
             f.write(center_pt_head + center_csv)
