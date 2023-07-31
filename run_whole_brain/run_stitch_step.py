@@ -9,7 +9,7 @@ import datetime, sys
 import utils
 from two_slice_stitch import StitchModel
 
-
+device = 'cuda:0' # 'cuda:1'
 def main():
     from torch.multiprocessing import Pool
     torch.multiprocessing.set_start_method('spawn', force=True)
@@ -22,7 +22,6 @@ def main():
     brain_result_path = '%s/%s_NIS_results.h5' % (r, brain_tag)
     brain_flow_dir = '%s/flow_3d' % r
     remap_save_path = '%s/%s_remap.json' % (r, brain_tag)
-    device = 'cuda:0' # 'cuda:1'
     print(datetime.datetime.now(), f"Start python program {sys.argv}", flush=True)
     max_nuclei_size = (10, 30, 30) # 
     graph_model = StitchModel(device)
@@ -235,10 +234,10 @@ def get_i_xy(fn):
     return int(fn.split('_')[-1][:-4].replace('resample', ''))
 
 
-def sort_fs(fs, get_i):
+def sort_fs(fs, get_i, firsti=0):
     out = [0 for _ in range(len(fs))]
     for fn in fs:
-        i = get_i(fn)
+        i = get_i(fn) - firsti
         out[i] = fn
     return out
 
