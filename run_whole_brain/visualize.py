@@ -2,7 +2,7 @@ import h5py, os, torch, json
 import nibabel as nib
 import numpy as np
 import tifffile as tif
-from run_stitch_step import sort_fs, get_i_xy, get_rid_of_zoombie_process
+from run_stitch_step import sort_fs, get_rid_of_zoombie_process
 import utils
 from multiprocessing import Pool
 from datetime import datetime
@@ -11,6 +11,7 @@ def main():
     tgt_roi = 16001
     tgt_shape = (128, 256, 256)
     tgt_chunk_num = 2 # chunk number of each brain
+    ratio_2dto3d = [2.5/4, 1, 1]
     _r = '/lichtman/ziquanw/Lightsheet/results/P4'
     mask_r = '/lichtman/Felix/Lightsheet/P4/%s/output_%s/registered/%s_MASK_topro_25_all.nii'
     data_list = []
@@ -23,9 +24,9 @@ def main():
         pair_tag = os.path.dirname(os.path.dirname(remap_fn)).split('/')[-1]
         print(datetime.now(), "Start crop chunks of brain", pair_tag, brain_tag)
         save_r = '%s/%s/%s' % (_r, pair_tag, brain_tag)
-        brain_flow_dir = '%s/%s/%s/flow_3d' % (_r, pair_tag, brain_tag)
+        # brain_flow_dir = '%s/%s/%s/flow_3d' % (_r, pair_tag, brain_tag)
         img_r = '/lichtman/Felix/Lightsheet/P4/%s/output_%s/stitched' % (pair_tag, brain_tag)
-        flow_fnlist = sort_fs([fn for fn in os.listdir(brain_flow_dir) if fn.endswith('.npy')], get_i_xy)
+        img_fnlist = sort_fs([fn for fn in os.listdir(img_r) if fn.endswith('.tif') and '_C1_' in fn], get_i_xy, firsti=1)
         mask_fn = mask_r % (pair_tag, brain_tag, brain_tag)
         nis_fn = remap_fn.replace('_remap.json', '_NIS_results.h5')
         assert os.path.exists(nis_fn), f'{brain_tag} has not complete NIS'
@@ -70,9 +71,10 @@ def main():
                 chunk[chunk==i] = newi
             
             print(datetime.now(), 'Load image')
-            img_fnlist = []
             for z in range(zs, ze):
-                img_fn = flow_fnlist[z].split('_resample')[0]+'.tif'
+                z = int(z * ratio_2dto3d[0])
+                assert z < len(img_fnlist), "%d, %d" % (z, len(img_fnlist))
+                img_fn = img_fnlist[z]
                 img_fnlist.append(img_fn)
             loader_pool = Pool(processes=10)
             image = list(loader_pool.imap(load_img_chunk, [(os.path.join(img_r, img_fn), ys, ye, xs, xe) for img_fn in img_fnlist]))
@@ -82,7 +84,7 @@ def main():
             chunk = nib.Nifti1Image(chunk, np.eye(4))
             nib.save(chunk, '%s/seg_chunk_forvis_z%d-%d_y%d-%d_x%d-%d.nii' % (save_r,zs,ze,ys,ye,xs,xe))
             image = nib.Nifti1Image(image, np.eye(4))
-            nib.save(chunk, '%s/img_chunk_forvis_z%d-%d_y%d-%d_x%d-%d.nii' % (save_r,zs,ze,ys,ye,xs,xe))
+            nib.save(image, '%s/img_chunk_forvis_z%d-%d_y%d-%d_x%d-%d.nii' % (save_r,zs,ze,ys,ye,xs,xe))
 
             # tif.imwrite('%s/seg_chunk_forvis_z%d-%d_y%d-%d_x%d-%d.tif' % (save_r,zs,ze,ys,ye,xs,xe), chunk)
             # tif.imwrite('%s/img_chunk_forvis_z%d-%d_y%d-%d_x%d-%d.tif' % (save_r,zs,ze,ys,ye,xs,xe), image)
@@ -92,4 +94,8 @@ def load_img_chunk(args):
     fn, ys, ye, xs, xe = args
     return utils.imread(fn)[ys:ye, xs:xe]
     
+
+def get_i_xy(fn):
+    return int(fn.split('_')[1])
+
 if __name__ == "__main__": main()

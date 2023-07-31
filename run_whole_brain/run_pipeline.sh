@@ -16,6 +16,10 @@ NOW="$(date +"%m-%d-%Y-%T")"
 # nohup python run_whole_brain/run_2steps.py L66D764P6 pair12 1 >> log_$NOW.out
 # nohup python run_whole_brain/run_2steps.py L73D766P5 pair14 0 >> log_$NOW.out
 # nohup python run_whole_brain/run_2steps.py L73D766P7 pair14 1 >> log_$NOW.out 
+# nohup python run_whole_brain/run_2steps.py L66D764P3 pair11 0 >> log_$NOW.out
+# nohup python run_whole_brain/run_2steps.py L66D764P8 pair11 1 >> log_$NOW.out 
+# nohup python run_whole_brain/run_2steps.py L74D769P4 pair16 0 >> log_$NOW.out
+# nohup python run_whole_brain/run_2steps.py L74D769P8 pair16 1 >> log_$NOW.out 
 
 # ## Run second CPU steps: 3D to mask
 # ## python run_cpu_step.py brain   
@@ -31,6 +35,10 @@ NOW="$(date +"%m-%d-%Y-%T")"
 # nohup python run_whole_brain/run_cpu_step.py L66D764P6 pair12 >> log_$NOW.out
 # nohup python run_whole_brain/run_cpu_step.py L73D766P5 pair14 >> log_$NOW.out
 # nohup python run_whole_brain/run_cpu_step.py L73D766P7 pair14 >> log_$NOW.out 
+# nohup python run_whole_brain/run_cpu_step.py L66D764P3 pair11 >> log_$NOW.out
+# nohup python run_whole_brain/run_cpu_step.py L66D764P8 pair11 >> log_$NOW.out 
+# nohup python run_whole_brain/run_cpu_step.py L74D769P4 pair16 >> log_$NOW.out
+# nohup python run_whole_brain/run_cpu_step.py L74D769P8 pair16 >> log_$NOW.out 
 
 ## Run third steps: stitch gaps
 ## python run_stitch_step.py brain   
@@ -47,5 +55,9 @@ NOW="$(date +"%m-%d-%Y-%T")"
 # nohup python run_whole_brain/run_stitch_step.py L66D764P6 pair12 >> log_$NOW.out
 # nohup python run_whole_brain/run_stitch_step.py L73D766P5 pair14 >> log_$NOW.out
 # nohup python run_whole_brain/run_stitch_step.py L73D766P7 pair14 >> log_$NOW.out 
+# nohup python run_whole_brain/run_stitch_step.py L66D764P3 pair11 >> log_$NOW.out
+# nohup python run_whole_brain/run_stitch_step.py L66D764P8 pair11 >> log_$NOW.out 
+# nohup python run_whole_brain/run_stitch_step.py L74D769P4 pair16 >> log_$NOW.out
+# nohup python run_whole_brain/run_stitch_step.py L74D769P8 pair16 >> log_$NOW.out 
 
 
