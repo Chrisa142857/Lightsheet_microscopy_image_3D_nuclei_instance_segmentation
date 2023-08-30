@@ -3,7 +3,16 @@ import nibabel as nib
 import numpy as np
 import torch
 from datetime import datetime
-from tqdm import tqdm
+from tqdm import tqdm, trange
+from multiprocessing import Pool
+
+def find_label(ds, i, tgt, loworhigh=0):
+    x = ds[i, 3]
+    condition = x < tgt if loworhigh == 0 else x > tgt
+    if condition:
+        i = i * 2 if loworhigh == 0 else i / 2
+        i = find_label(ds, i, tgt, loworhigh)
+    return i
 
 
 def main():
@@ -20,6 +29,7 @@ def main():
         # if len(fs) > 0: break
     out = []
     for remap_fn in data_list:
+        if 'pair21' not in remap_fn: continue
         brain_tag = os.path.dirname(remap_fn).split('/')[-1]
         pair_tag = os.path.dirname(os.path.dirname(remap_fn)).split('/')[-1]
         print(datetime.now(), "Statistic brain", pair_tag, brain_tag)
@@ -41,22 +51,40 @@ def main():
         brain_shape = nis['nuclei_segmentation'].shape
         nis_labels = nis['instance_label'][:]
         nis_centers = nis['instance_center'][:]
+        print(datetime.now(),"Loaded centers", nis_centers.dtype)
         nis_volumes = nis['instance_volume'][:]
+        # nis_volumes = nis['coordinate'][:, 3]
         nis_labels = torch.from_numpy(nis_labels).cuda()
-        nis_volumes = torch.from_numpy(nis_volumes).cuda()
+        nis_volumes = torch.from_numpy(nis_volumes).cuda()#.bincount()[1:]
+        # torch.save(nis_volumes, os.path.join(_r, 'NIS_VOL_%s_%s.pth' % (pair_tag, brain_tag)))
+        # print(datetime.now(),"Saved volumes, max volume=", nis_volumes.max())
         nis_centers = torch.from_numpy(nis_centers).cuda()
-        print(datetime.now(), "Total nuclei number", nis_labels.shape)
+        print(datetime.now(), "Total nuclei number", nis_labels.shape, nis_centers.dtype)
         with open(remap_fn, 'r') as jsonf:
             remaps = json.load(jsonf)
-        remap_dict = {}
+        # remap_dict = {}
         replicated = torch.zeros_like(nis_labels, dtype=bool)
-        print(datetime.now(), 'Remove replicated nuclei')
-        for remap in remaps:
+        target = torch.zeros_like(nis_labels, dtype=bool)
+        print(datetime.now(), f"Remove {sum([len(remap['remap'].keys()) for remap in remaps])} replicated nuclei") 
+        for ri, remap in enumerate(remaps):
+            # if ri == 2: break
             dic = remap['remap']
-            for oldid in dic:
-                assert oldid not in remap_dict, remap['stitching_slices']
-                remap_dict[oldid] = dic[oldid]
-                replicated = replicated & (nis_labels == oldid)
+            with Pool(8) as p:
+                keys = list(p.map(int, dic.keys()))
+            keys = torch.LongTensor(keys).to(nis_labels.device)
+            values = torch.LongTensor(list(dic.values())).to(nis_labels.device)
+            interval = 250
+            for di in trange(0, len(keys), interval):
+                cur_replicated = (nis_labels == keys[di:di+interval, None]).any(0)
+                cur_target = (nis_labels == values[di:di+interval, None]).any(0)
+                replicated = replicated | cur_replicated
+                target = target | cur_target
+            # for oldid in tqdm(dic):
+            #     # replicated = replicated & (nis_labels == oldid)
+            #     # target = target & (nis_labels == dic[oldid])
+            #     replicated[nis_labels == oldid] = True
+            #     target[nis_labels == dic[oldid]] = True
+        nis_centers[target] = (nis_centers[target] + nis_centers[replicated]) / 2
         nis_labels = nis_labels[~replicated]
         nis_volumes = nis_volumes[~replicated]
         nis_centers = nis_centers[~replicated]
@@ -83,7 +111,7 @@ def main():
         # print('Len', len(torch.where(center_loc)))
         # print('Len', center_pt.shape)
         # exit()
-        print(datetime.now(), f'Statistic {len(roi_label)-sum(is_fg)} nuclei in {len(roi_id)-1} different regions')
+        print(datetime.now(), f'Statistic {sum(is_fg)} nuclei in {len(roi_id)-1} different regions')
         bincount = roi_label[is_fg].bincount()
         # assert bincount.sum() == len(roi_label), f'bincount error, where bincount.sum()={bincount.sum()} and len(roi_label)={len(roi_label)}'
         o = {
@@ -100,16 +128,25 @@ def main():
             cur_loc = roi_label == i
             cur_loc = is_fg & cur_loc
             vols = nis_volumes[cur_loc] / vol_scale
+            # cur_label = nis_labels[cur_loc]
+            # labelmin = cur_label.min()
+            # lowi = find_label(nis['coordinate'], labelmin, labelmin, loworhigh=0)
+            # highi = find_label(nis['coordinate'], nis_labels.max() - cur_label.max(), nis_labels.max() - cur_label.max(), loworhigh=1)
+            # vols = (torch.from_numpy(nis['coordinate'][lowi:highi, 3]) - labelmin).bincount()
+            # vols = vols[vols!=0] / vol_scale
+            # print(datetime.now(),"Loaded coordinates")
             o['roi_avg_volume'][org_i.item()] = vols.mean().item()
+            if remap_save_roi_id == i:
+                save_vols = vols.float()
         
         out.append(o)
         
-        center_pt_head = 'X,Y,Z\n'
-        # center_pt = torch.cat([nis_labels[center_loc].unsqueeze(1), center_pt[center_loc, :]], -1)
         center_pt = center_pt[center_loc, :]
+        center_pt_head = 'center X,center Y,center Z,Volume\n'
+        center_pt = torch.cat([center_pt, save_vols.unsqueeze(1)], -1)
         center_csv = str(center_pt.tolist())
         center_csv = center_csv[2:-2].replace('], [','\n')
-        with open(os.path.join(_r, 'center_pts_%s_%s_RoI%d.csv' % (pair_tag, brain_tag, save_roi_id)), 'w') as f:
+        with open(os.path.join(_r, 'NIS_%s_%s_RoI%d.csv' % (pair_tag, brain_tag, save_roi_id)), 'w') as f:
             f.write(center_pt_head + center_csv)
     
     csv = 'pair ID,brain ID,'

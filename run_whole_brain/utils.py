@@ -17,8 +17,7 @@ import torch
 # from . import metrics
 
 class MaskTiledImg:
-    def __init__(self, 
-            maskn='/lichtman/Felix/Lightsheet/P4/pair15/output_L73D766P4/registered/L73D766P4_MASK_topro_25_all.nii',
+    def __init__(self, maskn, # '/lichtman/Felix/Lightsheet/P4/pair15/output_L73D766P4/registered/L73D766P4_MASK_topro_25_all.nii'
             mask_zres=25,
             img_zres=2.5,
         ):

@@ -17,7 +17,7 @@ print(datetime.now(), "Pipeline start with %d CPUs" % (num_cpus+1))
 def main():
     print(datetime.now(), f"Start python program {sys.argv}", flush=True)
     # 2D to 3D: one chunk has 12 slices, based on the RAM limit. Different number has no effect to results
-    slicen_3d = 12 
+    slicen_3d = 10 
     ##
     dir_n = 'flow_3d'
     # brain_tag = 'L73D766P4' # L73D766P9
@@ -45,36 +45,28 @@ def main():
     depth_start = 1
     for f in orig_fs:
         fs[filename_to_depth(f, depth_start)] = f
-    # start = int(sys.argv[2])
-    # end = int(sys.argv[3])
     start = 0
     end = -1
     dset = BrainSliceDataset(fs[start:end]) if end > 0 else BrainSliceDataset(fs[start:])
     # dloader = DataLoader(dset,batch_size=1,shuffle=False,num_workers=8,collate_fn=collate_fn_pass)
-    rescaled_chunk_depth = torch.nn.functional.interpolate(torch.zeros(1, 1, slicen_3d, 3, 3), scale_factor=scale_r, mode='nearest-exact').squeeze().shape[0]
+    # rescaled_chunk_depth = torch.nn.functional.interpolate(torch.zeros(1, 1, slicen_3d, 3, 3), scale_factor=scale_r, mode='nearest-exact').squeeze().shape[0]
     si = 1
     flow_2d = []
     pre_final_yx_flow, pre_last_second = None, None
     resampled_si = 0
-    process_2d_to_3d = None
+    # process_2d_to_3d = None
     print(datetime.now(), "Load slice %d" % (start + si))
     for data in tqdm(dset, desc="Run 2D Unet from slice %d to %d" % (start, end)):
         img, fn = data
         model.mask_tile.z = filename_to_depth(fn, depth_start)
         if int(model.mask_tile.z/model.mask_tile.zratio) >= len(model.mask_tile.mask): 
-            print(datetime.now(), "Brain mask end, break")
+            print(datetime.now(), "Brain mask end, break out")
             break
         print(datetime.now(), "Input to model")
         prob = model.get_prob(img, diameter=None, batch_size=100, channels=[0,0])
         flow_2d.append(prob)
         if len(flow_2d) == slicen_3d:
-            # if process_2d_to_3d is not None: 
-            #     print(datetime.now(), "Wait for previous chunk 2D to 3D")
-            #     process_2d_to_3d.join()
-            #     time.sleep(1)
             flow_2d = preproc_flow2d(np.stack(flow_2d, axis=0), pre_final_yx_flow, scale_r)
-            # process_2d_to_3d = mp.Process(target=one_chunk_2d_to_3d, args=(resampled_si, flow_2d.clone(), pre_last_second.clone() if pre_last_second is not None else None, save_r, fn, device))
-            # process_2d_to_3d.start()
             resampled_si = one_chunk_2d_to_3d(resampled_si, flow_2d, pre_last_second, save_r, fn, device)
             pre_final_yx_flow = flow_2d[:, -1]
             pre_last_second = flow_2d[:2, -2]

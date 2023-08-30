@@ -66,7 +66,7 @@ def main():
         h5data_append(ilabel_dset, labels, old_instance_n , new_instance_n)
         h5data_append(ivolume__dset, vols, old_instance_n , new_instance_n)
         h5data_append(icenter_dset, centers, old_instance_n , new_instance_n)
-        idbase = idbase + max(labels)
+        idbase = idbase + max(labels) + 1
         stitch_range[si, 0] = zmin
         stitch_range[si, 1] = zmin
         for d in range(1, 3):     

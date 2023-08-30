@@ -22,7 +22,7 @@ class StitchModel(nn.Module):
         tss_config = get_model_config()
         self.nets = TSS(model_params=tss_config)
         self.topn = 2
-        self.gpu_num = 2
+        self.gpu_num = 0 # 2
         self.classifier = MLP(input_dim=tss_config['classifier_feats_dict']['edge_out_dim']*self.topn, fc_dims=[128, 64, 32, self.topn+1], use_batchnorm=True, dropout_p=0.3)
 
     def preprocess(self, data, pool1=None, pool2=None):
@@ -61,10 +61,14 @@ class StitchModel(nn.Module):
         x = torch.cat([node1, node2]).float() # N1+N2 x node_feat_size
         print(datetime.now(), "Compute distance between two node sets to find N-neighbors", flush=True)
         if self.gpu_num == 0:
-            # distance = get_distance(bbox1.to('cpu'), bbox2.to('cpu')).to(self.device) # N1 x N2
-            distance = get_distance_low_ram(bbox1.to('cpu'), bbox2.to('cpu'))#.to(self.device) # N1 x N2
             print(datetime.now(), "Determine edge index based on deistance")
-            out, _ = build_one_graph(distance, self.distance_thr, range(N1), 0, [[], []], [[], []], topn=self.topn)
+            # # distance = get_distance(bbox1.to('cpu'), bbox2.to('cpu')).to(self.device) # N1 x N2
+            # distance = get_distance_low_ram(bbox1.to('cpu'), bbox2.to('cpu'))#.to(self.device) # N1 x N2
+            # out, _ = build_one_graph(distance, self.distance_thr, range(N1), 0, [[], []], [[], []], topn=self.topn)
+            out = []
+            for i in range(len(bbox1)):
+                out.append(build_one_graph_low_ram(((bbox1[i, :2] - bbox2[:, :2]) ** 2).sum(1).sqrt(), i, self.topn))
+            out = [torch.LongTensor(out)]
         else:
             out = []
             inputs = []

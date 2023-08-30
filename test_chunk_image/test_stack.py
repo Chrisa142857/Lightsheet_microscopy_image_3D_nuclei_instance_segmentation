@@ -5,7 +5,7 @@ from tqdm import tqdm, trange
 # from assign2Dto3D_graph import assign_fun
 import models
 import torch, sys, os, imageio
-from test_tss import test_onestack as tsstest_onestack
+# from test_tss import test_onestack as tsstest_onestack
 from two_slice_stitch import StitchModel
 from utils import mask2mask_list, eval_f1
 import nibabel as nib
@@ -50,11 +50,11 @@ def main_cellpose3D(_r, save_tag='Carolyn_P15'):
 
     print("F1: %.6f, Prec: %.6f, Rec: %.6f, time: %.6f" % (np.mean(f1s), np.mean(precs), np.mean(recs), all_time/len(testlist)))
 
-def main_cellpose2D_cosine_sim(_r, gt_r=None, save_tag='Carolyn_P15'):
+def main_ours(_r, gt_r=None, save_tag='Carolyn_P15'):
     print(save_tag, "cellpose2D_simZ")
     if gt_r is None: gt_r = _r
     eval_device = 0
-    tag = 'cellpose2D_cosine_sim'
+    # tag = 'cellpose2D_cosine_sim'
     # save_r = 'results_%s/%s' % (save_tag, tag)
     # os.makedirs(save_r, exist_ok=True)
     # if '4' in save_tag:
@@ -94,44 +94,44 @@ def main_cellpose2D_cosine_sim(_r, gt_r=None, save_tag='Carolyn_P15'):
 
     print("F1: %.6f, Prec: %.6f, Rec: %.6f, time: %.6f" % (np.mean(f1s), np.mean(precs), np.mean(recs), all_time/len(testlist)))
 
-def main_cellpose2D_simZ_graph(_r, save_tag='Carolyn_P15'):
-    print(save_tag, "cellpose2D_simZ")
-    eval_device = 2
-    tag = 'cellpose2D_simZ_graph'
-    save_r = 'results_%s/%s' % (save_tag, tag)
-    os.makedirs(save_r, exist_ok=True)
-    # trained_model = 'cellpose/models/cellpose_residual_on_style_on_concatenation_off_train_2023_02_28_09_28_46.761192_epoch_41'
-    trained_model = 'cellpose/models/P4_models/cellpose_residual_on_style_on_concatenation_off_train_2023_04_10_21_02_12.036323_epoch_41'
-    # model = models.CellposeModel(device=torch.device('cuda:%d' % int(sys.argv[3])), pretrained_model=trained_model)
-    model = models.CellposeModel(device=torch.device('cuda:1'), pretrained_model=trained_model)    
-    graph_model = StitchModel('cuda:%d'%eval_device)    
-    graph_model.to('cuda:%d'%eval_device)
-    graph_model.load_state_dict(torch.load('tss_trainv2_output_filter_pyramid/epoch188.pth'))
-    testlist = [f for f in os.listdir(_r) if f.endswith('.tif') and not f.endswith('_masks.tif')]
-    with open('test_p4_list.txt', 'r') as f:
-        testlist = f.read().split('\n')[:-1]
-    testlist = [f.split('/')[-1].replace('_masks', '') for f in testlist]
-    precs, recs, f1s = [], [], []
-    all_time = 0
-    for f in testlist:
-        img = np.array(imageio.v2.mimread(os.path.join(_r, f)))
-        gtn = f.replace('.tif', '- completed.nii') if 'Felix' in save_tag else f.replace('.tif', '.nii')
-        gt = nib.load(os.path.join(_r.replace('images', 'masks'), gtn)).get_fdata()
-        gt = np.transpose(gt, (2, 1, 0))[:, ::-1].copy()
-        otime = time.time()
-        masks = []
-        for im in img:
-            mask, _, _ = model.eval(im, diameter=None, channels=[0,0], do_3D=False, stitch_threshold=0)
-            masks.append(mask)
-        masks, _ = tsstest_onestack(np.stack(masks), img, graph_model, 'cuda:%d'%eval_device)
-        all_time += time.time()-otime
-        tif.imwrite('%s/%s' % (save_r, f), masks) # cellpose
-        prec, rec, f1, _, _, _ = eval_f1(torch.from_numpy(mask2mask_list(masks)).to('cuda:%d'%eval_device), torch.from_numpy(mask2mask_list(gt)).to('cuda:%d'%eval_device))
-        precs.append(prec)
-        recs.append(rec)
-        f1s.append(f1)
+# def main_cellpose2D_simZ_graph(_r, save_tag='Carolyn_P15'):
+#     print(save_tag, "cellpose2D_simZ")
+#     eval_device = 2
+#     tag = 'cellpose2D_simZ_graph'
+#     save_r = 'results_%s/%s' % (save_tag, tag)
+#     os.makedirs(save_r, exist_ok=True)
+#     # trained_model = 'cellpose/models/cellpose_residual_on_style_on_concatenation_off_train_2023_02_28_09_28_46.761192_epoch_41'
+#     trained_model = 'cellpose/models/P4_models/cellpose_residual_on_style_on_concatenation_off_train_2023_04_10_21_02_12.036323_epoch_41'
+#     # model = models.CellposeModel(device=torch.device('cuda:%d' % int(sys.argv[3])), pretrained_model=trained_model)
+#     model = models.CellposeModel(device=torch.device('cuda:1'), pretrained_model=trained_model)    
+#     graph_model = StitchModel('cuda:%d'%eval_device)    
+#     graph_model.to('cuda:%d'%eval_device)
+#     graph_model.load_state_dict(torch.load('tss_trainv2_output_filter_pyramid/epoch188.pth'))
+#     testlist = [f for f in os.listdir(_r) if f.endswith('.tif') and not f.endswith('_masks.tif')]
+#     with open('test_p4_list.txt', 'r') as f:
+#         testlist = f.read().split('\n')[:-1]
+#     testlist = [f.split('/')[-1].replace('_masks', '') for f in testlist]
+#     precs, recs, f1s = [], [], []
+#     all_time = 0
+#     for f in testlist:
+#         img = np.array(imageio.v2.mimread(os.path.join(_r, f)))
+#         gtn = f.replace('.tif', '- completed.nii') if 'Felix' in save_tag else f.replace('.tif', '.nii')
+#         gt = nib.load(os.path.join(_r.replace('images', 'masks'), gtn)).get_fdata()
+#         gt = np.transpose(gt, (2, 1, 0))[:, ::-1].copy()
+#         otime = time.time()
+#         masks = []
+#         for im in img:
+#             mask, _, _ = model.eval(im, diameter=None, channels=[0,0], do_3D=False, stitch_threshold=0)
+#             masks.append(mask)
+#         masks, _ = tsstest_onestack(np.stack(masks), img, graph_model, 'cuda:%d'%eval_device)
+#         all_time += time.time()-otime
+#         tif.imwrite('%s/%s' % (save_r, f), masks) # cellpose
+#         prec, rec, f1, _, _, _ = eval_f1(torch.from_numpy(mask2mask_list(masks)).to('cuda:%d'%eval_device), torch.from_numpy(mask2mask_list(gt)).to('cuda:%d'%eval_device))
+#         precs.append(prec)
+#         recs.append(rec)
+#         f1s.append(f1)
 
-    print("F1: %.6f, Prec: %.6f, Rec: %.6f, time: %.6f" % (np.mean(f1s), np.mean(precs), np.mean(recs), all_time/len(testlist)))
+#     print("F1: %.6f, Prec: %.6f, Rec: %.6f, time: %.6f" % (np.mean(f1s), np.mean(precs), np.mean(recs), all_time/len(testlist)))
 
 # def main_cellpose2D_graph(_r):
 #     best_graph_epoch = 116 # 38 116
@@ -204,12 +204,12 @@ if __name__ == "__main__":
     # main_cellpose2D_graph('/BAND/USERS/ziquanw/data/Felix_P4/')
     # main_cellpose2D_iou('/BAND/USERS/ziquanw/data/Felix_P4/')
     # main_cellpose3D('/BAND/USERS/ziquanw/data/Carolyn_org_Sept/images', 'Carolyn_P15')
-    main_cellpose2D_cosine_sim('downloads/stack_data/P4/', gt_r='downloads/stack_data/P4_rescaled-as-P15/', save_tag='P4')
-    # main_cellpose2D_cosine_sim('downloads/stack_data/P4/', save_tag='P4')
-    # main_cellpose2D_cosine_sim('../downloads/stack_data/P4_rescaled-as-P15/', 'P4')
-    # main_cellpose2D_cosine_sim('/BAND/USERS/ziquanw/data/Carolyn_org_Sept/images', 'Carolyn_P15')
+    main_ours('downloads/stack_data/P4/', gt_r='downloads/stack_data/P4_rescaled-as-P15/', save_tag='P4')
+    # main_ours('downloads/stack_data/P4/', save_tag='P4')
+    # main_ours('../downloads/stack_data/P4_rescaled-as-P15/', 'P4')
+    # main_ours('/BAND/USERS/ziquanw/data/Carolyn_org_Sept/images', 'Carolyn_P15')
     # main_cellpose3D('/BAND/USERS/ziquanw/data/Felix_P4/', 'Felix_P4')
     # main_cellpose3D('/BAND/USERS/ziquanw/data/Felix_P4_rescaled-as-P15/', 'Felix_P4')
-    # main_cellpose2D_cosine_sim('/BAND/USERS/ziquanw/data/Felix_P4/', 'Felix_P4')
+    # main_ours('/BAND/USERS/ziquanw/data/Felix_P4/', 'Felix_P4')
     # main_cellpose2D_simZ_graph('/BAND/USERS/ziquanw/data/Carolyn_org_Sept/images', 'Carolyn_P15')
     # main_cellpose2D_simZ_graph('/BAND/USERS/ziquanw/data/Felix_P4/', 'Felix_P4')

@@ -9,7 +9,7 @@ from datetime import datetime
 
 def main():
     tgt_roi = 16001
-    tgt_shape = (128, 256, 256)
+    tgt_shape = (32, 2500, 2500)
     tgt_chunk_num = 2 # chunk number of each brain
     ratio_2dto3d = [2.5/4, 1, 1]
     _r = '/lichtman/ziquanw/Lightsheet/results/P4'
@@ -69,19 +69,19 @@ def main():
             for newi, i in enumerate(np.unique(chunk)):
                 if i == 0: continue
                 chunk[chunk==i] = newi
-            
+            chunk_fnlist = []
             print(datetime.now(), 'Load image')
             for z in range(zs, ze):
                 z = int(z * ratio_2dto3d[0])
                 assert z < len(img_fnlist), "%d, %d" % (z, len(img_fnlist))
                 img_fn = img_fnlist[z]
-                img_fnlist.append(img_fn)
+                chunk_fnlist.append(img_fn)
             loader_pool = Pool(processes=10)
-            image = list(loader_pool.imap(load_img_chunk, [(os.path.join(img_r, img_fn), ys, ye, xs, xe) for img_fn in img_fnlist]))
+            image = list(loader_pool.imap(load_img_chunk, [(os.path.join(img_r, img_fn), ys, ye, xs, xe) for img_fn in chunk_fnlist]))
             get_rid_of_zoombie_process(loader_pool)
             image = np.stack([np.asarray(img) for img in image])
             print(datetime.now(), 'Save chunks of segmentation and image')
-            chunk = nib.Nifti1Image(chunk, np.eye(4))
+            chunk = nib.Nifti1Image(chunk.astype(np.float32), np.eye(4))
             nib.save(chunk, '%s/seg_chunk_forvis_z%d-%d_y%d-%d_x%d-%d.nii' % (save_r,zs,ze,ys,ye,xs,xe))
             image = nib.Nifti1Image(image, np.eye(4))
             nib.save(image, '%s/img_chunk_forvis_z%d-%d_y%d-%d_x%d-%d.nii' % (save_r,zs,ze,ys,ye,xs,xe))
