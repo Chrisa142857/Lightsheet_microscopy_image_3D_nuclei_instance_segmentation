@@ -5,18 +5,20 @@ from torch_geometric.data import Data
 import fastremap
 from scipy.ndimage import find_objects
 import datetime, sys
+import multiprocessing as mp
 
 import utils
 from two_slice_stitch import StitchModel
+# from torch.multiprocessing import Pool
+# torch.multiprocessing.set_start_method('spawn', force=True)
 
-device = 'cuda:0' # 'cuda:1'
+# device = 'cuda:0' # 'cuda:1'
 def main():
-    from torch.multiprocessing import Pool
-    torch.multiprocessing.set_start_method('spawn', force=True)
+    # brain_tag = 'L91D814P6'
+    # pair_tag = 'pair21'
     brain_tag = sys.argv[1]
-    # brain_tag = 'L73D766P9'
-    # pair_tag = 'pair15'
     pair_tag = sys.argv[2]
+    device = 'cuda:%d' % int(sys.argv[3]) # 'cuda:1'
     r = '/lichtman/ziquanw/Lightsheet/results/P4/%s/%s' % (pair_tag, brain_tag)
     img_r = '/lichtman/Felix/Lightsheet/P4/%s/output_%s/stitched' % (pair_tag, brain_tag)
     brain_result_path = '%s/%s_NIS_results.h5' % (r, brain_tag)
@@ -34,31 +36,31 @@ def main():
     stitch_pts = maskf['wait_for_stitch']
     stitch_pts = stitch_pts[:]
     stitch_pts = stitch_pts[stitch_pts.sum(1)>0]
-    next_id, dims = match_stitch_pt(stitch_pts) # only stitch pre slice to the next
+    pre_id, dims = match_stitch_pt(stitch_pts) # only stitch pre slice to the next
     N = stitch_pts.shape[0]
-    next_id = [None] + [stitch_pts[i][0]+1 for i in range(1, N-1)] + [None]
-    total = len(dims[(next_id!=None) & (dims==0)])
+    pre_id = [None] + [stitch_pts[i][0]-1 for i in range(1, N-1)] + [None]
+    total = len(dims[(pre_id!=None) & (dims==0)])
     stitching_i = 0
     if os.path.exists(remap_save_path):
         with open(remap_save_path, 'r') as jsonf:
             out_json = json.load(jsonf)
         complete_stitch_i = [o['complete_stitch_i'] for o in out_json]
-        print(datetime.datetime.now(), f"Already done stitching slices {[[stitch_pts[i][0], next_id[i]] for i in complete_stitch_i]}, skip them")
+        print(datetime.datetime.now(), f"Already done stitching slices {[[pre_id[i], stitch_pts[i][0]] for i in complete_stitch_i]}, skip them")
     else:
         out_json = []
         complete_stitch_i = []
     for i in range(N):
-        if next_id[i] is None: continue
+        if pre_id[i] is None: continue
         if dims[i] != 0: continue
         stitching_i += 1
         if i in complete_stitch_i: continue
-        loader_pool = Pool(processes=2)
-        graph_node_pool = Pool(processes=2)
-        graph_edge_pool = Pool(processes=2)
+        # loader_pool = Pool(processes=2)
+        graph_node_pool = None # Pool(processes=2)
+        graph_edge_pool = None # Pool(processes=2)
         pt = stitch_pts[i]
         dim = dims[i]
-        pre_slice_id = pt[dim]
-        next_slice_id = [next_id[i]]
+        next_slice_id = [pt[dim]]
+        pre_slice_id = pre_id[i]
         indices = [pre_slice_id] + next_slice_id
         print(datetime.datetime.now(), "[%03d/%d] Start stitch slices %s" % (stitching_i, total, indices), flush=True)
         zs, ze, ys, ye, xs, xe = pt # ~s and ~e are the same in the dim of stitching plane, e.g., zs = ze = 64
@@ -67,12 +69,15 @@ def main():
         slice = seg[indices, ys:ye, xs:xe]
         pre_img_fn = flow_fnlist[pre_slice_id].split('_resample')[0]+'.tif'
         next_img_fn = flow_fnlist[next_slice_id[0]].split('_resample')[0]+'.tif'
-        image = list(loader_pool.imap(utils.imread, [os.path.join(img_r, pre_img_fn), os.path.join(img_r, next_img_fn)]))
-        get_rid_of_zoombie_process(loader_pool)
+        # image = list(loader_pool.imap(utils.imread, [os.path.join(img_r, pre_img_fn), os.path.join(img_r, next_img_fn)]))
+        with mp.Pool(processes=2) as pool:
+            paths = [os.path.join(img_r, pre_img_fn), os.path.join(img_r, next_img_fn)]
+            image = list(tqdm(pool.imap(utils.imread, [path for path in paths]), total=len(paths), desc=f"Load boundary images")) 
+        # get_rid_of_zoombie_process(loader_pool)
         image = np.stack([np.asarray(img) for img in image])
-        loader_pool = Pool(processes=2)
-        flow = load_flow_multiprocess(brain_flow_dir, pre_slice_id, next_slice_id[0], ys, ye, xs, xe, loader_pool)
-        get_rid_of_zoombie_process(loader_pool)
+        # loader_pool = Pool(processes=2)
+        flow = load_flow_multiprocess(brain_flow_dir, pre_slice_id, next_slice_id[0], ys, ye, xs, xe)
+        # get_rid_of_zoombie_process(loader_pool)
         print(datetime.datetime.now(), "Done loading", flush=True)
         dim_vol= dim // 2
         pre_mask, next_stack = np.take(slice, 0, axis=dim_vol), np.take(slice, [ii for ii in range(1, len(indices))], axis=dim_vol)
@@ -80,11 +85,11 @@ def main():
         pre_slice_image, next_slice_image = norm_img(pre_slice_image), norm_img(next_slice_image)
         pre_flow, next_flow = np.take(flow, 0, axis=dim_vol+1), np.take(flow, 1, axis=dim_vol+1)
         remap_dict = stitch_one_gap(graph_model, pre_mask, next_stack, pre_slice_image, next_slice_image, pre_flow, next_flow, dim_vol, graph_node_pool, graph_edge_pool)
-        try:
-            get_rid_of_zoombie_process(graph_edge_pool)
-            get_rid_of_zoombie_process(graph_node_pool)
-        except:
-            pass
+        # try:
+        #     # get_rid_of_zoombie_process(graph_edge_pool)
+        #     # get_rid_of_zoombie_process(graph_node_pool)
+        # except:
+        #     pass
         if remap_dict is None: continue
         out_json.append({
             'stitching_slices': [pre_slice_id, next_slice_id[0]],
@@ -96,13 +101,15 @@ def main():
         with open(remap_save_path,'w') as file:
             file.write(json.dumps(out_json, indent=4, cls=NpEncoder))
         torch.cuda.empty_cache()
-
-    loader_pool.close()
-    del loader_pool
-    graph_node_pool.close()
-    del graph_node_pool
-    graph_edge_pool.close()
-    del graph_edge_pool
+    exit()
+    # print('close pools')
+    # loader_pool.close()
+    # graph_node_pool.close()
+    # graph_edge_pool.close()
+    # print('del pools')
+    # del loader_pool
+    # del graph_node_pool
+    # del graph_edge_pool
 
 def stitch_one_gap(model, pre_mask, next_stack, pre_slice, next_slice, pre_flow, next_flow, axis, graph_node_pool, graph_edge_pool):
     next_mask = np.take(next_stack, 0, axis=axis)
@@ -242,10 +249,13 @@ def sort_fs(fs, get_i, firsti=0):
     return out
 
 
-def load_flow_multiprocess(fdir, zmin, zmax, ymin, ymax, xmin, xmax, pool):
+def load_flow_multiprocess(fdir, zmin, zmax, ymin, ymax, xmin, xmax):
     flist = sort_fs([fn for fn in os.listdir(fdir) if fn.endswith('.npy')], get_i_xy)
     fs = [fn for fn in flist if zmin <= get_i_xy(fn) < zmax+1]
-    data = list(pool.imap(load_data, [(os.path.join(fdir, fn), ymin, ymax, xmin, xmax) for fn in fs])) # [3 x Y x X]
+    # data = list(pool.imap(load_data, [(os.path.join(fdir, fn), ymin, ymax, xmin, xmax) for fn in fs])) # [3 x Y x X]
+    paths = [(os.path.join(fdir, fn), ymin, ymax, xmin, xmax) for fn in fs]
+    with mp.Pool(processes=2) as pool:
+        data = list(tqdm(pool.imap(load_data, [path for path in paths]), total=len(paths), desc=f"Load flow from slice {zmin} to {zmax}")) # [3 x Y x X]
     return np.stack(data, axis=1)[:3]
 
 
