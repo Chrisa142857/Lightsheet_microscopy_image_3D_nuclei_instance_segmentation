@@ -13,12 +13,12 @@ from two_slice_stitch import StitchModel
 # torch.multiprocessing.set_start_method('spawn', force=True)
 
 # device = 'cuda:0' # 'cuda:1'
+device = 'cuda:%d' % int(sys.argv[3]) # 'cuda:1'
 def main():
     # brain_tag = 'L91D814P6'
     # pair_tag = 'pair21'
     brain_tag = sys.argv[1]
     pair_tag = sys.argv[2]
-    device = 'cuda:%d' % int(sys.argv[3]) # 'cuda:1'
     r = '/lichtman/ziquanw/Lightsheet/results/P4/%s/%s' % (pair_tag, brain_tag)
     img_r = '/lichtman/Felix/Lightsheet/P4/%s/output_%s/stitched' % (pair_tag, brain_tag)
     brain_result_path = '%s/%s_NIS_results.h5' % (r, brain_tag)
