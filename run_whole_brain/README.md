@@ -1,21 +1,28 @@
 ## Usage
-You can get an example on `run_whole_brain/run_pipeline.sh`
 
-More specific:
+ - ### First
 
-### Step 1
-This step is using GPU.
+`sh run_2steps.sh`
+
+This step requires one GPU.
+
+ - ### Second
+
+`sh run_cpu_step.sh`
+
+This step requires a big RAM (>350GB)
+
+ - ### Third
+
+`sh run_stitch_step.sh`
+
+This step requires one GPU.
+
+More specific, those `sh` files call following python programs.
 ```
-cd ..
 python run_whole_brain/run_2steps.py <brain_tag> <pair_tag> <gpu_id>
-```
-### Step 2
-This step is using CPU.
-```
+
 python run_whole_brain/run_cpu_step.py <brain_tag> <pair_tag>
-```
-### Step 3
-This step is using GPU.
-```
-python run_whole_brain/run_stitch_step.py <brain_tag> <pair_tag>
+
+python run_whole_brain/run_stitch_step.py <brain_tag> <pair_tag> <gpu_id>
 ```
