@@ -29,10 +29,10 @@ NOW="$(date +"%m-%d-%Y-%T")"
 # NOW="$(date +"%m-%d-%Y-%T")"
 # nohup python run_whole_brain/run_2steps.py L66D764P6 pair12 1 >> log_$NOW.out
 # NOW="$(date +"%m-%d-%Y-%T")"
-nohup python run_whole_brain/run_2steps.py L73D766P5 pair14 0 >> log_$NOW.out & 
-sleep 1
-NOW="$(date +"%m-%d-%Y-%T")"
-nohup python run_whole_brain/run_2steps.py L73D766P7 pair14 1 >> log_$NOW.out 
+# nohup python run_whole_brain/run_2steps.py L73D766P5 pair14 0 >> log_$NOW.out & 
+# sleep 1
+# NOW="$(date +"%m-%d-%Y-%T")"
+# nohup python run_whole_brain/run_2steps.py L73D766P7 pair14 1 >> log_$NOW.out 
 NOW="$(date +"%m-%d-%Y-%T")"
 nohup python run_whole_brain/run_2steps.py L66D764P3 pair11 0 >> log_$NOW.out & 
 sleep 1
@@ -44,10 +44,10 @@ sleep 1
 NOW="$(date +"%m-%d-%Y-%T")"
 nohup python run_whole_brain/run_2steps.py L74D769P8 pair16 1 >> log_$NOW.out 
 NOW="$(date +"%m-%d-%Y-%T")"
-nohup python run_whole_brain/run_2steps.py L91D814P2 pair21 0 >> log_$NOW.out
-NOW="$(date +"%m-%d-%Y-%T")"
-# nohup python run_whole_brain/run_2steps.py L91D814P6 pair21 1 >> log_$NOW.out 
-nohup python run_whole_brain/run_2steps.py L91D814P3 pair22 0 >> log_$NOW.out & 
+nohup python run_whole_brain/run_2steps.py L91D814P2 pair21 0 >> log_$NOW.out & 
 sleep 1
 NOW="$(date +"%m-%d-%Y-%T")"
-nohup python run_whole_brain/run_2steps.py L91D814P4 pair22 1 >> log_$NOW.out 
+# nohup python run_whole_brain/run_2steps.py L91D814P6 pair21 1 >> log_$NOW.out 
+nohup python run_whole_brain/run_2steps.py L91D814P3 pair22 1 >> log_$NOW.out
+NOW="$(date +"%m-%d-%Y-%T")"
+nohup python run_whole_brain/run_2steps.py L91D814P4 pair22 0 >> log_$NOW.out 
