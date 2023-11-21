@@ -24,31 +24,43 @@ NOW="$(date +"%m-%d-%Y-%T")"
 # NOW="$(date +"%m-%d-%Y-%T")"
 # nohup python run_whole_brain/run_stitch_step.py L64D804P9 pair10 1 >> log_$NOW.out
 # NOW="$(date +"%m-%d-%Y-%T")" 
-nohup python run_whole_brain/run_stitch_step.py L66D764P5 pair12 0 >> log_$NOW.out & 
-sleep 1
-NOW="$(date +"%m-%d-%Y-%T")"
-nohup python run_whole_brain/run_stitch_step.py L66D764P6 pair12 1 >> log_$NOW.out
-NOW="$(date +"%m-%d-%Y-%T")"
-nohup python run_whole_brain/run_stitch_step.py L73D766P5 pair14 0 >> log_$NOW.out & 
-sleep 1
-NOW="$(date +"%m-%d-%Y-%T")"
-nohup python run_whole_brain/run_stitch_step.py L73D766P7 pair14 1 >> log_$NOW.out 
+# nohup python run_whole_brain/run_stitch_step.py L66D764P5 pair12 0 >> log_$NOW.out & 
+# sleep 1
+# NOW="$(date +"%m-%d-%Y-%T")"
+# nohup python run_whole_brain/run_stitch_step.py L66D764P6 pair12 1 >> log_$NOW.out
+# NOW="$(date +"%m-%d-%Y-%T")"
+# nohup python run_whole_brain/run_stitch_step.py L73D766P5 pair14 0 >> log_$NOW.out & 
+# sleep 1
+# NOW="$(date +"%m-%d-%Y-%T")"
+# nohup python run_whole_brain/run_stitch_step.py L73D766P7 pair14 1 >> log_$NOW.out 
 # NOW="$(date +"%m-%d-%Y-%T")"
 # nohup python run_whole_brain/run_stitch_step.py L66D764P3 pair11 0 >> log_$NOW.out & 
 # sleep 1
 # NOW="$(date +"%m-%d-%Y-%T")"
-# nohup python run_whole_brain/run_stitch_step.py L66D764P8 pair11 1 >> log_$NOW.out 
+# nohup python run_whole_brain/run_stitch_step.py L66D764P8 pair11 0 >> log_$NOW.out &
+# sleep 1
 # NOW="$(date +"%m-%d-%Y-%T")"
 # nohup python run_whole_brain/run_stitch_step.py L74D769P4 pair16 0 >> log_$NOW.out & 
 # sleep 1
 # NOW="$(date +"%m-%d-%Y-%T")"
-# nohup python run_whole_brain/run_stitch_step.py L74D769P8 pair16 1 >> log_$NOW.out 
+# nohup python run_whole_brain/run_stitch_step.py L74D769P8 pair16 1 >> log_$NOW.out
 # NOW="$(date +"%m-%d-%Y-%T")"
 # nohup python run_whole_brain/run_stitch_step.py L91D814P2 pair21 0 >> log_$NOW.out & 
 # sleep 1
+# nohup python run_whole_brain/run_stitch_step.py L91D814P6 pair21 >> log_$NOW.out 
 # NOW="$(date +"%m-%d-%Y-%T")"
-# # nohup python run_whole_brain/run_stitch_step.py L91D814P6 pair21 >> log_$NOW.out 
 # nohup python run_whole_brain/run_stitch_step.py L91D814P3 pair22 1 >> log_$NOW.out
+# sleep 1
 # NOW="$(date +"%m-%d-%Y-%T")"
 # nohup python run_whole_brain/run_stitch_step.py L91D814P4 pair22 0 >> log_$NOW.out 
+
+
+NOW="$(date +"%m-%d-%Y-%T")"
+nohup python run_whole_brain/run_stitch_step.py L79D769P9 pair20 0 >> log_$NOW.out 
+NOW="$(date +"%m-%d-%Y-%T")"
+nohup python run_whole_brain/run_stitch_step.py L79D769P7 pair20 0 >> log_$NOW.out 
+NOW="$(date +"%m-%d-%Y-%T")"
+nohup python run_whole_brain/run_stitch_step.py L35D719P4 pair3 0 >> log_$NOW.out 
+NOW="$(date +"%m-%d-%Y-%T")"
+nohup python run_whole_brain/run_stitch_step.py L35D719P1 pair3 0 >> log_$NOW.out 
 

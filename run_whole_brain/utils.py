@@ -17,22 +17,28 @@ import torch
 # from . import metrics
 
 class MaskTiledImg:
-    def __init__(self, maskn, # '/lichtman/Felix/Lightsheet/P4/pair15/output_L73D766P4/registered/L73D766P4_MASK_topro_25_all.nii'
+    def __init__(self, maskn=None, # '/lichtman/Felix/Lightsheet/P4/pair15/output_L73D766P4/registered/L73D766P4_MASK_topro_25_all.nii'
             mask_zres=25,
             img_zres=2.5,
         ):
-        self.mask = torch.from_numpy(np.transpose(nib.load(maskn).get_fdata(), (2, 0, 1))[:, :, ::-1].copy())
-        self.zratio = mask_zres / img_zres
+        if maskn is not None:
+            self.mask = torch.from_numpy(np.transpose(nib.load(maskn).get_fdata(), (2, 0, 1))[:, :, ::-1].copy())
+            self.zratio = mask_zres / img_zres
+        else:
+            self.mask = None
 
     def __call__(self, y, x, shape):
-        ratio = [d/w for d, w in zip(self.mask.shape[1:], shape[1:])]
-        z = int(self.z/self.zratio)
-        mask = self.mask[z]
-        cy = (y[:, 0] + y[:, 1])/2
-        cx = (x[:, 0] + x[:, 1])/2
-        cy = (cy * ratio[0]).long()
-        cx = (cx * ratio[1]).long()
-        return mask[cy, cx] > 0
+        if self.mask is not None:
+            ratio = [d/w for d, w in zip(self.mask.shape[1:], shape[1:])]
+            z = int(self.z/self.zratio)
+            mask = self.mask[z]
+            cy = (y[:, 0] + y[:, 1])/2
+            cx = (x[:, 0] + x[:, 1])/2
+            cy = (cy * ratio[0]).long()
+            cx = (cx * ratio[1]).long()
+            return mask[cy, cx] > 0
+        else:
+            return torch.ones(len(y)).bool()
 
 def imread(filename):
     """ read in image with tif or image file type supported by cv2 """

@@ -11,7 +11,7 @@ def main():
     print(datetime.now(), f"Start python program {sys.argv}", flush=True)
     save_ftail = '_NIS_results.h5'
     # 3D flow to instance mask: one chunk has 48 slices, based on the RAM limit. More slices less whole brain gaps.
-    chunk_depth = 48
+    chunk_depth = 40
     ## prev steps setting #############################
     dir_n = 'flow_3d'
     # brain_tag = 'L73D766P9' # L73D766P4

@@ -27,20 +27,29 @@ NOW="$(date +"%m-%d-%Y-%T")"
 # nohup python run_whole_brain/run_cpu_step.py L73D766P5 pair14 >> log_$NOW.out
 # NOW="$(date +"%m-%d-%Y-%T")"
 # nohup python run_whole_brain/run_cpu_step.py L73D766P7 pair14 >> log_$NOW.out 
-NOW="$(date +"%m-%d-%Y-%T")"
-nohup python run_whole_brain/run_cpu_step.py L66D764P3 pair11 >> log_$NOW.out
-NOW="$(date +"%m-%d-%Y-%T")"
-nohup python run_whole_brain/run_cpu_step.py L66D764P8 pair11 >> log_$NOW.out 
-NOW="$(date +"%m-%d-%Y-%T")"
-nohup python run_whole_brain/run_cpu_step.py L74D769P4 pair16 >> log_$NOW.out
-NOW="$(date +"%m-%d-%Y-%T")"
-nohup python run_whole_brain/run_cpu_step.py L74D769P8 pair16 >> log_$NOW.out 
-NOW="$(date +"%m-%d-%Y-%T")"
-nohup python run_whole_brain/run_cpu_step.py L91D814P2 pair21 >> log_$NOW.out
-NOW="$(date +"%m-%d-%Y-%T")"
+# NOW="$(date +"%m-%d-%Y-%T")"
+# nohup python run_whole_brain/run_cpu_step.py L66D764P3 pair11 >> log_$NOW.out
+# NOW="$(date +"%m-%d-%Y-%T")"
+# nohup python run_whole_brain/run_cpu_step.py L66D764P8 pair11 >> log_$NOW.out 
+# NOW="$(date +"%m-%d-%Y-%T")"
+# nohup python run_whole_brain/run_cpu_step.py L74D769P4 pair16 >> log_$NOW.out
+# NOW="$(date +"%m-%d-%Y-%T")"
+# nohup python run_whole_brain/run_cpu_step.py L74D769P8 pair16 >> log_$NOW.out 
+# NOW="$(date +"%m-%d-%Y-%T")"
+# nohup python run_whole_brain/run_cpu_step.py L91D814P2 pair21 >> log_$NOW.out
+# NOW="$(date +"%m-%d-%Y-%T")"
 # nohup python run_whole_brain/run_cpu_step.py L91D814P6 pair21 >> log_$NOW.out 
-nohup python run_whole_brain/run_cpu_step.py L91D814P3 pair22 >> log_$NOW.out
+# NOW="$(date +"%m-%d-%Y-%T")"
+# nohup python run_whole_brain/run_cpu_step.py L91D814P3 pair22 >> log_$NOW.out
+# NOW="$(date +"%m-%d-%Y-%T")"
+# nohup python run_whole_brain/run_cpu_step.py L91D814P4 pair22 >> log_$NOW.out 
 NOW="$(date +"%m-%d-%Y-%T")"
-nohup python run_whole_brain/run_cpu_step.py L91D814P4 pair22 >> log_$NOW.out 
+nohup python run_whole_brain/run_cpu_step.py L79D769P9 pair20 >> log_$NOW.out 
+NOW="$(date +"%m-%d-%Y-%T")"
+nohup python run_whole_brain/run_cpu_step.py L79D769P7 pair20 >> log_$NOW.out 
+NOW="$(date +"%m-%d-%Y-%T")"
+nohup python run_whole_brain/run_cpu_step.py L35D719P4 pair3 >> log_$NOW.out 
+NOW="$(date +"%m-%d-%Y-%T")"
+nohup python run_whole_brain/run_cpu_step.py L35D719P1 pair3 >> log_$NOW.out 
 
 

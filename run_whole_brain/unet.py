@@ -9,7 +9,7 @@ from datetime import datetime
 
 import transforms
 import resnet
-# import utils
+import utils
 
 
 def parse_model_string(pretrained_model):
@@ -95,18 +95,17 @@ class UnetModel():
     def network(self, x, return_conv=False):
         """ convert imgs to torch and run network model and return numpy """
         # X = self._to_device(x)
-        X  = x.float().to(self.device)
-        self.net.eval()
+        # X  = x.to(self.device)
         # if self.mkldnn:
         #     self.net = mkldnn_utils.to_mkldnn(self.net)
         with torch.no_grad():
-            y, style = self.net(X)
-        del X
-        y = self._from_device(y)
-        style = self._from_device(style)
-        if return_conv:
-            conv = self._from_device(conv)
-            y = np.concatenate((y, conv), axis=1)
+            y, style = self.net(x)
+        # del X
+        # y = self._from_device(y)
+        # style = self._from_device(style)
+        # if return_conv:
+        #     conv = self._from_device(conv)
+        #     y = np.concatenate((y, conv), axis=1)
         
         return y, style
                 
@@ -270,7 +269,8 @@ class UnetModel():
         tile_mask = self.mask_tile(ysub, xsub, imgi.shape)
         batches = torch.where(tile_mask)[0].numpy()
         ny, nx, nchan, ly, lx = IMGshape
-        dset = TiledImage(imgi, ysub, xsub)
+        lower_intensity = self.lower_intensity
+        dset = TiledImage(imgi, ysub, xsub, lower_intensity)
         dset = Subset(dset, batches)
         # IMG = np.reshape(IMG, (ny*nx, nchan, ly, lx))
         batch_size = self.batch_size
@@ -280,9 +280,13 @@ class UnetModel():
         y = np.zeros((ny*nx, nout, ly, lx))
         # for k in range(niter):
         print(datetime.now(), f"Loop tiles")
-        for k, img in enumerate(dloader):
+        for k, data in enumerate(dloader):
+            img = data['tiles']
+            imask = data['is_foreground']
+            img = img[imask]
             # irange = np.arange(batch_size*k, min(IMG.shape[0], batch_size*k+batch_size))
-            irange = batches[batch_size*k: min(batches.shape[0], batch_size*k+batch_size)]
+            irange = batches[batch_size*k : min(batches.shape[0], batch_size*k+batch_size)]
+            irange = irange[imask]
             # y0, style = self.network(IMG[irange], return_conv=return_conv)
             y0, style = self.network(img, return_conv=return_conv)
             y[irange] = y0.reshape(len(irange), y0.shape[-3], y0.shape[-2], y0.shape[-1])
@@ -301,18 +305,21 @@ class UnetModel():
 
 
 class TiledImage(Dataset):
-    def __init__(self, imgi, ysub, xsub):
+    def __init__(self, imgi, ysub, xsub, lower_intensity):
         self.imgi = imgi
         self.ysub = ysub
         self.xsub = xsub
+        self.lower_intensity = lower_intensity
 
     def __getitem__(self, idx):
         ys, ye = self.ysub[idx]
         xs, xe = self.xsub[idx]
-        return self.imgi[:, ys:ye,  xs:xe]
+        out = self.imgi[:, ys:ye,  xs:xe].float()
+        return {'tiles': out, 'is_foreground': out.mean() > self.lower_intensity}
 
     def __len__(self):
         return len(self.ysub)
+    
     
 
 def make_tiles(imgi, bsize, tile_overlap):
@@ -338,10 +345,11 @@ def make_tiles(imgi, bsize, tile_overlap):
     return ysub, xsub, Ly, Lx, (len(ystart), len(xstart), nchan,  bsizeY, bsizeX)
     
 def average_tiles(y, ysub, xsub, Ly, Lx):
-    Navg = torch.zeros((Ly,Lx))
-    yf = torch.zeros((y.shape[1], Ly, Lx)).float()
+    ysub, xsub = ysub.to(y.device), xsub.to(y.device)
+    Navg = torch.zeros((Ly,Lx)).to(y.device)
+    yf = torch.zeros((y.shape[1], Ly, Lx)).float().to(y.device)
     # taper edges of tiles
-    mask = _taper_mask(ly=y.shape[-2], lx=y.shape[-1])
+    mask = _taper_mask(ly=y.shape[-2], lx=y.shape[-1]).to(y.device)
     for j in range(len(ysub)):
         yf[:, ysub[j][0]:ysub[j][1],  xsub[j][0]:xsub[j][1]] += y[j] * mask
         Navg[ysub[j][0]:ysub[j][1],  xsub[j][0]:xsub[j][1]] += mask
@@ -451,7 +459,7 @@ class NISModel(UnetModel):
                                                                                  ) 
     
     def get_prob(self, x, batch_size=8, channels=None, channel_axis=None, 
-             z_axis=None, normalize=True, invert=False, 
+             z_axis=None, normalize=True, invert=False, lower_intensity=100,
              rescale=None, diameter=None, net_avg=False, tile=True, tile_overlap=0.1,
              resample=True, loop_run=False, model_loaded=False):
 
@@ -464,6 +472,7 @@ class NISModel(UnetModel):
         if x.ndim < 4:
             x = x[np.newaxis,...]
         self.batch_size = batch_size
+        self.lower_intensity = lower_intensity
 
         if diameter is not None and diameter > 0:
             rescale = self.diam_mean / diameter

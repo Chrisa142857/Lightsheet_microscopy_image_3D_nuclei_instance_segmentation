@@ -16,8 +16,8 @@ print(datetime.now(), "Pipeline start with %d CPUs" % (num_cpus+1))
 
 def main():
     print(datetime.now(), f"Start python program {sys.argv}", flush=True)
-    # 2D to 3D: one chunk has 12 slices, based on the RAM limit. Different number has no effect to results
-    slicen_3d = 10 
+    # 2D to 3D: one chunk has 8 slices, based on the RAM limit. Different number has no effect to results
+    slicen_3d = 8
     ##
     dir_n = 'flow_3d'
     # brain_tag = 'L73D766P4' # L73D766P9
