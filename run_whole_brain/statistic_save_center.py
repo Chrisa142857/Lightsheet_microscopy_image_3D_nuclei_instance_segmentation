@@ -25,11 +25,11 @@ def main():
     save_roi_id = 16001
     data_list = []
     for r, d, fs in os.walk(_r):
-        data_list.extend([os.path.join(r, f) for f in fs if f.endswith('_remap.json')])
+        data_list.extend([os.path.join(r, f) for f in fs if f.endswith('_remap.json') and 'pair' in r])
         # if len(fs) > 0: break
     out = []
     for remap_fn in data_list:
-        if 'pair21' not in remap_fn: continue
+        if 'pair3' not in remap_fn and 'pair20' not in remap_fn: continue
         brain_tag = os.path.dirname(remap_fn).split('/')[-1]
         pair_tag = os.path.dirname(os.path.dirname(remap_fn)).split('/')[-1]
         print(datetime.now(), "Statistic brain", pair_tag, brain_tag)
@@ -37,7 +37,7 @@ def main():
         nis_fn = remap_fn.replace('_remap.json', '_NIS_results.h5')
         assert os.path.exists(nis_fn), f'{brain_tag} has not complete NIS'
         assert os.path.exists(mask_fn), f'{brain_tag} has no RoI mask'
-        orig_roi_mask = torch.from_numpy(np.transpose(nib.load(mask_fn).get_fdata(), (2, 0, 1))[:, :, ::-1].copy()).cuda()
+        orig_roi_mask = torch.from_numpy(np.transpose(nib.load(mask_fn).get_fdata(), (2, 0, 1))[:, :, ::-1].copy()).to('cuda:1')
         roi_mask = orig_roi_mask.clone()
         assert (roi_mask==orig_roi_mask).all()
         roi_remap = {}
@@ -54,11 +54,11 @@ def main():
         print(datetime.now(),"Loaded centers", nis_centers.dtype)
         nis_volumes = nis['instance_volume'][:]
         # nis_volumes = nis['coordinate'][:, 3]
-        nis_labels = torch.from_numpy(nis_labels).cuda()
-        nis_volumes = torch.from_numpy(nis_volumes).cuda()#.bincount()[1:]
+        nis_labels = torch.from_numpy(nis_labels).to('cuda:1')
+        nis_volumes = torch.from_numpy(nis_volumes).to('cuda:1')#.bincount()[1:]
         # torch.save(nis_volumes, os.path.join(_r, 'NIS_VOL_%s_%s.pth' % (pair_tag, brain_tag)))
         # print(datetime.now(),"Saved volumes, max volume=", nis_volumes.max())
-        nis_centers = torch.from_numpy(nis_centers).cuda()
+        nis_centers = torch.from_numpy(nis_centers).to('cuda:1')
         print(datetime.now(), "Total nuclei number", nis_labels.shape, nis_centers.dtype)
         with open(remap_fn, 'r') as jsonf:
             remaps = json.load(jsonf)
