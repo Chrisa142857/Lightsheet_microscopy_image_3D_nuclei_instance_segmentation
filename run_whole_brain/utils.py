@@ -22,7 +22,7 @@ class MaskTiledImg:
             img_zres=2.5,
         ):
         if maskn is not None:
-            self.mask = torch.from_numpy(np.transpose(nib.load(maskn).get_fdata(), (2, 0, 1))[:, :, ::-1].copy())
+            self.mask = torch.from_numpy(np.transpose(nib.load(maskn).get_fdata(), (2, 0, 1)).copy())#[:, :, ::-1]
             self.zratio = mask_zres / img_zres
         else:
             self.mask = None

@@ -94,8 +94,8 @@ def main(pair_tag, brain_tag):
     # vol = Volume(mydata)#.print()
     # mesh = isosurface(vol)
     # mesh.alpha = 0.1
-    # center = '/lichtman/ziquanw/Lightsheet/results/P4/center_pts_%s_%s_RoI16001.csv' % (pair_tag, brain_tag)
-    lightsheet_r = '/lichtman/ziquanw/Lightsheet/results/P4'
+    # center = '/cajal/ACMUSERS/ziquanw/Lightsheet/results/P4/center_pts_%s_%s_RoI16001.csv' % (pair_tag, brain_tag)
+    lightsheet_r = '/cajal/ACMUSERS/ziquanw/Lightsheet/results/P4'
     fn = '%s/NIS_%s_%s_RoI16001.csv' % (lightsheet_r, pair_tag, brain_tag)
     center = torch.from_numpy(pandas.read_csv(fn).to_numpy())[:, :3].to(device)
     vol = torch.from_numpy(pandas.read_csv(fn).to_numpy())[:, 3].to(device)
@@ -199,7 +199,7 @@ def main(pair_tag, brain_tag):
     # plt.show(vol)
 
 if __name__ == '__main__':
-    _r = '/lichtman/ziquanw/Lightsheet/results/P4'
+    _r = '/cajal/ACMUSERS/ziquanw/Lightsheet/results/P4'
 
     data_list = []
     for r, d, fs in os.walk(_r):
@@ -207,7 +207,11 @@ if __name__ == '__main__':
     # print(data_list)
     # exit()
     for remap_fn in tqdm(data_list[1:]):
-        if 'pair3' not in remap_fn: continue
+        # if 'L73D766P5' not in remap_fn: continue
+        if 'L79D769P8' not in remap_fn: continue
+        # try:
         brain_tag = os.path.dirname(remap_fn).split('/')[-1]
         pair_tag = os.path.dirname(os.path.dirname(remap_fn)).split('/')[-1]
         main(pair_tag, brain_tag)
+        # except:
+        #     continue

@@ -148,15 +148,29 @@ def steps3D(p, dP, inds, niter):
     ## ChatGPT optimization
     shape = p.shape[1:]
     inds = inds.long()
+    z = inds[:, 0]
+    y = inds[:, 1]
+    x = inds[:, 2]
+    pp = p[:, z, y, x]
+    # print("=================")
+    # print(dP.max(), dP.min())
+    # print("=================")
+    # print(pp.long().max(), pp.long().min())
     for t in range(niter):
-        z = inds[:, 0]
-        y = inds[:, 1]
-        x = inds[:, 2]
-        p0, p1, p2 = p[:, z, y, x].long()
-        p[0, z, y, x] = torch.clip(p[0, z, y, x] + dP[0, p0, p1, p2], 0, shape[0] - 1)
-        p[1, z, y, x] = torch.clip(p[1, z, y, x] + dP[1, p0, p1, p2], 0, shape[1] - 1)
-        p[2, z, y, x] = torch.clip(p[2, z, y, x] + dP[2, p0, p1, p2], 0, shape[2] - 1)
-        
+        # p0, p1, p2 = p[:, z, y, x].long()
+        # p[0, z, y, x] = torch.clip(p[0, z, y, x] + dP[0, p0, p1, p2], 0, shape[0] - 1)
+        # p[1, z, y, x] = torch.clip(p[1, z, y, x] + dP[1, p0, p1, p2], 0, shape[1] - 1)
+        # p[2, z, y, x] = torch.clip(p[2, z, y, x] + dP[2, p0, p1, p2], 0, shape[2] - 1)
+        p0, p1, p2 = pp.long()
+        assert p0.max() < dP.shape[1], p0.max()
+        assert p0.min() >= 0, p0.min()
+        assert p1.max() < dP.shape[2], p1.max()
+        assert p1.min() >= 0, p1.min()
+        assert p2.max() < dP.shape[3], p2.max()
+        assert p2.min() >= 0, p2.min()
+        pp = pp + dP[:, p0, p1, p2]
+        pp = torch.clip(pp.transpose(0,-1), torch.zeros(len(shape)), torch.LongTensor(list(shape))-1).transpose(0,-1)
+    p[:, z, y, x] = pp
     return p
 
 def filename_to_depth(f, depth_start=0):
@@ -238,6 +252,7 @@ def get_masks(p, iscell=None, rpad=20):
     labels = []
     vols = []
     centers = []
+    ilabel = 0
     for k in range(len(pix)):
         if len(pix[k][0]) > big:
             remove_c += 1
@@ -246,14 +261,15 @@ def get_masks(p, iscell=None, rpad=20):
         if not is_fg.any():
             remove_c += 1
             continue
+        ilabel += 1
         coord = (pix[k][0][is_fg], pix[k][1][is_fg], pix[k][2][is_fg])
         vols.append(len(coord[0]))
         centers.append(torch.stack([(c.max()+c.min())/2 for c in coord]))
-        M[coord] = 1+k-remove_c
+        M[coord] = ilabel
         coords.append(
-            torch.cat([torch.stack(coord, -1), torch.zeros(len(coord[0]), 1, dtype=coord[0].dtype)+1+k-remove_c], -1)[is_fg, :]
+            torch.cat([torch.stack(coord, -1), torch.zeros(len(coord[0]), 1, dtype=coord[0].dtype)+ilabel], -1)[is_fg, :]
         )
-        labels.append(1+k-remove_c)
+        labels.append(ilabel)
     M0 = M[tuple(pflows)]
     coords = torch.cat(coords)
     labels = torch.LongTensor(labels)

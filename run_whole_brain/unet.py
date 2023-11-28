@@ -323,7 +323,8 @@ class TiledImage(Dataset):
     
 
 def make_tiles(imgi, bsize, tile_overlap):
-    nchan, Ly, Lx = imgi.shape
+    # nchan, Ly, Lx = imgi.shape
+    nchan, Ly, Lx = imgi
     tile_overlap = min(0.5, max(0.05, tile_overlap))
     bsizeY, bsizeX = min(bsize, Ly), min(bsize, Lx)
     bsizeY = np.int32(bsizeY)
@@ -342,6 +343,10 @@ def make_tiles(imgi, bsize, tile_overlap):
             ysub.append([ystart[j], ystart[j]+bsizeY])
             xsub.append([xstart[i], xstart[i]+bsizeX])
             # IMG[j, i] = imgi[:, ysub[-1][0]:ysub[-1][1],  xsub[-1][0]:xsub[-1][1]]
+    P = torch.zeros((Ly,Lx))
+    for j in range(len(ysub)):
+        P[ysub[j][0]:ysub[j][1],  xsub[j][0]:xsub[j][1]] = 1
+    assert (P != 0).all(), torch.where(P==0)
     return ysub, xsub, Ly, Lx, (len(ystart), len(xstart), nchan,  bsizeY, bsizeX)
     
 def average_tiles(y, ysub, xsub, Ly, Lx):
@@ -350,10 +355,16 @@ def average_tiles(y, ysub, xsub, Ly, Lx):
     yf = torch.zeros((y.shape[1], Ly, Lx)).float().to(y.device)
     # taper edges of tiles
     mask = _taper_mask(ly=y.shape[-2], lx=y.shape[-1]).to(y.device)
+    assert (mask!=0).all(), torch.where(mask==0)
+    P = torch.zeros((Ly,Lx))
+    for j in range(len(ysub)):
+        P[ysub[j][0]:ysub[j][1],  xsub[j][0]:xsub[j][1]] = 1
+    assert (P != 0).all(), torch.where(P==0)
     for j in range(len(ysub)):
         yf[:, ysub[j][0]:ysub[j][1],  xsub[j][0]:xsub[j][1]] += y[j] * mask
         Navg[ysub[j][0]:ysub[j][1],  xsub[j][0]:xsub[j][1]] += mask
     yf /= Navg
+    assert not yf.isnan().any(), (Navg==0).any()
     return yf
 
 def _taper_mask(ly=224, lx=224, sig=7.5):

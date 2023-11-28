@@ -15,18 +15,16 @@ std::vector<torch::Tensor> pad_image(torch::Tensor img0){
   int64_t div = 16;
   int64_t extra = 1;
   torch::IntArrayRef img_shape = img0.sizes();
-  int64_t Lpad = (div * (int64_t)std::ceil(img_shape[1]/div) - img_shape[1]);
+  int64_t Lpad = (div * (std::ceil(img_shape[1]/div)+1) - img_shape[1]);
   int64_t xpad1 = extra * div / 2 + Lpad / 2;
   int64_t xpad2 = extra * div / 2 + Lpad - Lpad / 2;
     
-  Lpad = (div * (int64_t)std::ceil(img_shape[2]/div) - img_shape[1]);
+  Lpad = (div * (std::ceil(img_shape[2]/div)+1) - img_shape[2]);
   int64_t ypad1 = extra * div / 2 + Lpad / 2;
   int64_t ypad2 = extra * div / 2 + Lpad - Lpad / 2;
   torch::Tensor I = torch::constant_pad_nd(img0, {ypad1, ypad2, xpad1, xpad2, 0, 0}, 0);
-  int64_t Lx_new = I.size(2);
-  int64_t Ly_new = I.size(1);
-  torch::Tensor ysub = torch::arange(xpad1, xpad1 + Ly_new);
-  torch::Tensor xsub = torch::arange(ypad1, ypad1 + Lx_new);
+  torch::Tensor ysub = torch::arange(xpad1, xpad1 + img_shape[1]);
+  torch::Tensor xsub = torch::arange(ypad1, ypad1 + img_shape[2]);
   std::vector<torch::Tensor> outputs;
   outputs.push_back(I);
   outputs.push_back(ysub);

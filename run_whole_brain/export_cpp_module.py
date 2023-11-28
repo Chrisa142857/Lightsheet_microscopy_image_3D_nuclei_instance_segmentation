@@ -1,4 +1,5 @@
 import torch, torchist
+from torch import nn
 # from run_all_in_one import preproc_flow2d, one_chunk_2d_to_3d
 
 from unet import NISModel, percentile, make_tiles
@@ -6,11 +7,60 @@ from collections import namedtuple
 import math 
 from tqdm import tqdm, trange
 from kornia.filters.median import median_blur
+from tss_model import MLP, TSS, get_model_config
 
 import numpy as np
 
 device = 'cuda:0'
 
+class StitchModel(nn.Module):
+    '''
+        input: two slices, each is [mask, bbox, flow]
+        output: edge classification
+    '''
+    def __init__(self) -> None:
+        super(StitchModel, self).__init__()
+        # self.device = device
+        self.distance_thr = 20
+        tss_config = get_model_config()
+        self.nets = TSS(model_params=tss_config)
+        self.topn = 2
+        # self.gpu_num = 0 # 2
+        self.classifier = MLP(input_dim=tss_config['classifier_feats_dict']['edge_out_dim']*self.topn, fc_dims=[128, 64, 32, self.topn+1], use_batchnorm=True, dropout_p=0.3)
+
+    def forward(self, x, edge_index, edge_attr, node0):
+        # x, edge_index, edge_attr = self.preprocess(data)
+        # x, edge_index, edge_attr = data
+        x = self.nets(x, edge_index, edge_attr)
+        ## accumlate
+        # x = torch.stack(x)
+        # x = x.sum(0)
+        ## or use the last layer
+        x = x[-1]
+        ## reshape topn node and classify
+        # node0 = edge_index[0].unique()
+        x = torch.stack([x[edge_index[0]==nid].reshape(-1) for nid in node0])
+        x = self.classifier(x)
+        return x
+
+def export_gnn():
+    gnn = StitchModel()
+    x = torch.randn(100, 209)
+    edge_index = torch.stack([torch.cat([torch.arange(25) for _ in range(2)]), torch.randint(100, (50,))])
+    edge_attr = torch.randn(50, 6)
+    args = (x, edge_index, edge_attr, torch.arange(25))
+    gnn.nets.eval()
+    with torch.no_grad():
+        traced_script_module = torch.jit.trace(gnn.nets, args[:3])
+        traced_script_module.save(f'downloads/resource/gnn_message_passing.pt')
+        x = traced_script_module(x, edge_index, edge_attr)
+        # x = x[-1]
+        x = torch.stack([x[edge_index[0]==nid].reshape(-1) for nid in torch.arange(25)])
+        gnn.classifier.eval()
+        traced_script_module = torch.jit.trace(gnn.classifier, x)
+        traced_script_module.save(f'downloads/resource/gnn_classifier.pt')
+
+    
 
 def init_flow3Dindex(p, iscell, zinds, yinds, xinds):
     # for i in range(dims):
@@ -428,8 +478,17 @@ def make_tiles_torch(Ly: torch.Tensor, Lx: torch.Tensor, bsize: torch.Tensor, ti
     cx = (xsub[:, 0] + xsub[:, 1])/2
     cy = (cy * yratio).long()
     cx = (cx * xratio).long()
+    f1 = mask[cy, cx] > 0
+    f2 = mask[cy-1, cx] > 0
+    f3 = mask[cy, cx-1] > 0
+    f4 = mask[cy-1, cx-1] > 0
+    f5 = mask[cy+1, cx] > 0
+    f6 = mask[cy, cx+1] > 0
+    f7 = mask[cy+1, cx+1] > 0
+    f8 = mask[cy-1, cx+1] > 0
+    f9 = mask[cy+1, cx-1] > 0
     Tile_param = namedtuple('Tile_param', ['ysub', 'xsub', 'mask'])
-    out = Tile_param(ysub, xsub, torch.where(mask[cy, cx] > 0)[0])
+    out = Tile_param(ysub, xsub, torch.where(f1|f2|f3|f4|f5|f6|f7|f8|f9)[0])
     # out.ysub = ysub
     # out.xsub = xsub
     # out.mask = mask[cy, cx] > 0
@@ -625,10 +684,11 @@ def fg_indexer(fg,zid,yid,xid):
 
 
 if __name__ == '__main__':
+    export_gnn()
     # export_init_flow3Dindex()
     # export_index_flow3D()
     # export_flow3D2seed()
-    export_fg_indexer()
+    # export_fg_indexer()
     # export_interpolate()
     # export_sim_gradz()
     # export_grad_2Dto3D(device)
