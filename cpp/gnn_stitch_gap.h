@@ -1,5 +1,6 @@
 #include <torch/script.h> // One-stop header.
 #include <torch/nn/functional.h>
+#include "utils.h"
 
 torch::Tensor gnn_stitch_gap(
     torch::jit::script::Module gnn_message_passing, 
