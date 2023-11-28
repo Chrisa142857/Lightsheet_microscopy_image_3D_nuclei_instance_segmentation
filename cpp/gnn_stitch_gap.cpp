@@ -17,11 +17,15 @@ torch::Tensor gnn_stitch_gap(
     gnn_message_passing.eval();
     gnn_classifier.to(device);
     gnn_message_passing.to(device);
+    print_with_time("Start build graph\n");
     std::vector<torch::Tensor> graph = build_graph(img1, mask1, flow1, img2, mask2, flow2, device);
+    print_with_time("Done, build graph: node ");
+    print_size(graph[0]);
     std::vector<torch::jit::IValue> gnn_input;
-    gnn_input.push_back(graph[0]);
-    gnn_input.push_back(graph[1]);
-    gnn_input.push_back(graph[2]);
+    gnn_input.push_back(graph[0].to(device));
+    gnn_input.push_back(graph[1].to(device));
+    gnn_input.push_back(graph[2].to(device));
+    print_with_time("Start GNN\n");
     torch::Tensor feat = gnn_message_passing(gnn_input).toTensor();
     std::vector<torch::Tensor> feat_vec;
     for(int64_t nid=0; nid < graph[5].size(0); nid++){
@@ -29,13 +33,15 @@ torch::Tensor gnn_stitch_gap(
     }
     feat = torch::stack(feat_vec);
     gnn_input.clear();
-    gnn_input.push_back(feat);
+    gnn_input.push_back(feat.to(device));
     torch::Tensor logits = gnn_classifier(gnn_input).toTensor();
+    print_with_time("Done GNN, output ");
+    print_size(logits);
     torch::Tensor pred = logits.argmax(1);
     torch::Tensor not_new_cell = pred != 0;
     pred = pred.index({not_new_cell}) - 1;
     logits = logits.index({not_new_cell});
-    torch::Tensor node0_ind = torch::arange({graph[5].size(0)}).index({not_new_cell});
+    torch::Tensor node0_ind = torch::arange({graph[5].size(0)}).to(device).index({not_new_cell});
     torch::Tensor node1_ind = graph[5].index({not_new_cell, pred});
     
     std::vector<torch::Tensor> oldid_vec;
@@ -43,14 +49,19 @@ torch::Tensor gnn_stitch_gap(
     std::tuple<torch::Tensor, torch::Tensor> unique_out = at::_unique(node1_ind);
     torch::Tensor nid1 = std::get<0>(unique_out);
     // If node1 matched to multiple node0, choose max score
+    print_with_time("Get remap dictionary, ");
     for (int64_t i=0; i<nid1.size(0); i++){
         oldid_vec.push_back(graph[4].index({nid1[i]})); // get org id of src mask
         torch::Tensor nid_place = (node1_ind==nid1[i]);
-        torch::Tensor scores = logits.index({nid_place, torch::indexing::Slice(1, torch::indexing::None)}); // [X x topn]
-        scores = std::get<0>(scores.max(1));
-        torch::Tensor matched_nid0 = node0_ind.index({nid_place, scores.argmax()});
+        torch::Tensor scores = logits.index({nid_place}); // [X x topn]
+        scores = std::get<0>(scores.max(1)); // [X]
+        torch::Tensor matched_nid0 = node0_ind.index({nid_place}).index({scores.argmax()});
         newid_vec.push_back(graph[3].index({matched_nid0})); // get org id of tgt mask
+        if (i % 10000 == 0){
+            std::cout<<"...";
+        }
     }
+    std::cout<<", Done\n";
     // [2 x X]
     return torch::stack({
         torch::stack(oldid_vec), torch::stack(newid_vec)
@@ -67,18 +78,24 @@ std::vector<torch::Tensor> build_graph(
     std::string device
 ) {
     // feat = {id_old2new, node_feat, edge_feat, bbox}
+    print_with_time("Feature 1 gather");
     std::vector<torch::Tensor> feat1 = get_feat(img1.to(device), mask1.to(device), flow1.to(device));
+    std::cout<<"Done\n";
+    print_with_time("Feature 2 gather");
     std::vector<torch::Tensor> feat2 = get_feat(img2.to(device), mask2.to(device), flow2.to(device));
+    std::cout<<"Done\n";
     // edges = {edge_id, edge_attr, topn_id}
+    print_with_time("Edge gather");
     std::vector<torch::Tensor> edges = get_edge(feat1[3], feat2[3], feat1[2], feat2[2], device);
+    std::cout<<"Done\n";
     // graph = {x, edge_id, edge_attr, node0_oldid2new, node1_oldid2new, topn_id}
     std::vector<torch::Tensor> graph;
-    graph.push_back(torch::cat({feat1[1], feat2[1]}));
-    graph.push_back(edges[1]);
-    graph.push_back(edges[2]);
-    graph.push_back(feat1[0]);
-    graph.push_back(feat2[0]);
-    graph.push_back(edges[3]);
+    graph.push_back(torch::cat({feat1[1], feat2[1]}).to(torch::kFloat).to(device));
+    graph.push_back(edges[0].to(device));
+    graph.push_back(edges[1].to(torch::kFloat).to(device));
+    graph.push_back(feat1[0].to(device));
+    graph.push_back(feat2[0].to(device));
+    graph.push_back(edges[2].to(device));
     return graph;
 }
 
@@ -98,6 +115,9 @@ std::vector<torch::Tensor> get_edge(
     std::vector<torch::Tensor> edge_attr;
     std::vector<torch::Tensor> topn_ind;
     for (int64_t i=0; i<bbox1.size(0); i++){
+        if (i % 10000 == 0){
+            std::cout<<"...";
+        }
         torch::Tensor d = center1[i] - center2;
         torch::Tensor dist = (d*d).sum(1).sqrt();
         torch::Tensor ind0 = torch::tensor(std::vector<int64_t>({i})).repeat(topn).to(device); // [topn]
@@ -145,6 +165,9 @@ std::vector<torch::Tensor> get_feat(
     std::vector<torch::Tensor> feats;
     std::vector<torch::Tensor> bboxs;
     for (int64_t i=0; i<oldid.size(0); i++){
+        if (i % 10000 == 0){
+            std::cout<<"...";
+        }
         torch::Tensor m = mask==oldid[i];
         torch::Tensor feat = F::interpolate(
             img.index({m}).unsqueeze(0).unsqueeze(0), 

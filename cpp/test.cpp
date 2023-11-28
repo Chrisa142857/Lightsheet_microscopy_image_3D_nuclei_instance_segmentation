@@ -31,7 +31,7 @@ std::vector<torch::Tensor> gpu_process(
   int64_t i, 
   int64_t chunk_depth, 
   std::vector<std::string> img_fns,
-  std::vector<std::string> mask_fns,
+  // std::vector<std::string> mask_fns,
   torch::jit::script::Module get_tile_param, 
   torch::jit::script::Module preproc, 
   torch::jit::script::Module nis_unet, 
@@ -44,18 +44,18 @@ std::vector<torch::Tensor> gpu_process(
 ) {
   print_with_time("Chunk has slice "+std::to_string(i)+"~"+std::to_string(i+chunk_depth)+"\n");
   std::vector<std::string> img_onechunk;
-  std::vector<std::string> mask_onechunk;
+  // std::vector<std::string> mask_onechunk;
   for (int64_t j = i; j < i+chunk_depth; j++){
     if (j >= img_fns.size()) {break;}
     img_onechunk.push_back(img_fns[j]);
-    mask_onechunk.push_back(mask_fns[j]);
+    // mask_onechunk.push_back(mask_fns[j]);
   }
   /*
   Loop slices of one chunk into Unet (GPU & IO)
   */
   std::vector<torch::Tensor> unet_output = loop_unet(
     img_onechunk, 
-    mask_onechunk, 
+    // mask_onechunk, 
     get_tile_param,
     preproc,
     nis_unet,
@@ -103,8 +103,8 @@ int main(int argc, const char* argv[]) {
     << TORCH_VERSION_MINOR << "."
     << TORCH_VERSION_PATCH << std::endl;
   std::string device = "cuda:0";
-  int64_t chunk_depth = 10;
-  float cellprob_threshold = 0.0;
+  int64_t chunk_depth = 30;
+  float cellprob_threshold = 0.1;
 
   torch::jit::script::Module get_tile_param;
   torch::jit::script::Module preproc;
@@ -129,20 +129,20 @@ int main(int argc, const char* argv[]) {
   std::string img_dir = "/lichtman/Felix/Lightsheet/P4/"+pair_tag+"/output_"+brain_tag+"/stitched/";
   std::string mask_dir = "/cajal/ACMUSERS/ziquanw/Lightsheet/roi_mask/"+pair_tag+"/"+brain_tag+"/";
   std::string h5fn = "/cajal/ACMUSERS/ziquanw/Lightsheet/results/P4/"+pair_tag+"/"+brain_tag+"/"+brain_tag+"_NIScpp_results.h5";
-  std::string remapfn = "/cajal/ACMUSERS/ziquanw/Lightsheet/results/P4/"+pair_tag+"/"+brain_tag+"/"+brain_tag+"_remap.pt";
+  std::string remapfn = "/cajal/ACMUSERS/ziquanw/Lightsheet/results/P4/"+pair_tag+"/"+brain_tag+"/"+brain_tag+"_remap.zip";
   auto allimgs = listdir_sorted(img_dir);
   auto allmasks = listdir_sorted(mask_dir);
   std::vector<std::string> img_fns;
-  std::vector<std::string> mask_fns;
+  // std::vector<std::string> mask_fns;
   for (std::string file : allimgs ) {
     if (file.find("_C1_") != std::string::npos) {
       img_fns.push_back(file);
     }
   }
-  for (std::string file : allmasks ) {
-    mask_fns.push_back(file);
-  }
-  if (mask_fns.size() != img_fns.size()) {exit(0);}
+  // for (std::string file : allmasks ) {
+  //   mask_fns.push_back(file);
+  // }
+  // if (mask_fns.size() != img_fns.size()) {exit(0);}
   std::cout<<"There are "<<img_fns.size()<<" .tif images\n";
 
   print_with_time("Initialize H5 database to store NIS results\n");
@@ -163,13 +163,15 @@ int main(int argc, const char* argv[]) {
   torch::Tensor pre_last_flow;
   torch::Tensor pre_last_mask;
   std::cout<<"Torch: no grad\n";
+  // std::future<torch::Tensor> nis_saver;
+  std::vector<torch::Tensor> remap_all;
   std::future<std::vector<torch::Tensor>> nis_obtainer;
   std::vector<torch::Tensor> nis_outputs;
   std::vector<torch::Tensor> gpu_outputs = gpu_process(
     0, 
     chunk_depth, 
     img_fns,
-    mask_fns,
+    // mask_fns,
     get_tile_param, 
     preproc, 
     nis_unet, 
@@ -204,7 +206,7 @@ int main(int argc, const char* argv[]) {
       i, 
       chunk_depth, 
       img_fns,
-      mask_fns,
+      // mask_fns,
       get_tile_param, 
       preproc, 
       nis_unet, 
@@ -225,14 +227,19 @@ int main(int argc, const char* argv[]) {
       */
       // Save the chunk to H5 database
       print_with_time("Save NIS results to H5 database\n");
+      
+      // if (i > chunk_depth){
+      //   masks = nis_saver.get();
+      // }
       hsize_t zmax = zmin + nis_outputs[0].size(0);
+      // nis_saver = std::async(std::launch::async, save_h5data, dsetlist, nis_outputs, old_instance_n, old_contour_n, zmin, zmax, whole_brain_shape);
       masks = save_h5data(dsetlist, nis_outputs, old_instance_n, old_contour_n, zmin, zmax, whole_brain_shape);
       zmin += nis_outputs[0].size(0);
       old_instance_n += nis_outputs[2].size(0);
       old_contour_n += nis_outputs[1].size(0);
     }
     /*
-    TODO: Run GNN to stitch the gap (GPU) 
+    Run GNN to stitch the gap (GPU) 
     */
     if (i > chunk_depth){
       // Stitch the gap between two chunks
@@ -244,7 +251,11 @@ int main(int argc, const char* argv[]) {
       torch::Tensor src_mask = masks.index({0, "..."});
       torch::Tensor src_flow = first_flow;
       torch::Tensor remap = gnn_stitch_gap(gnn_message_passing, gnn_classifier, tgt_img, tgt_mask, tgt_flow, src_img, src_mask, src_flow, device);
-      torch::save(remap, remapfn);
+      remap_all.push_back(remap);
+      auto bytes = torch::pickle_save(torch::cat(remap_all, -1)); //this is actually a std::vector of char
+      std::ofstream fout(remapfn, std::ios::out | std::ios::binary);
+      fout.write(bytes.data(), bytes.size());
+      fout.close();
     }
 
     pre_last_img = last_img;

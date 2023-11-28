@@ -48,16 +48,18 @@ def export_gnn():
     x = torch.randn(100, 209)
     edge_index = torch.stack([torch.cat([torch.arange(25) for _ in range(2)]), torch.randint(100, (50,))])
     edge_attr = torch.randn(50, 6)
-    args = (x, edge_index, edge_attr, torch.arange(25))
+    args = (x.cuda(), edge_index.cuda(), edge_attr.cuda(), torch.arange(25))
     gnn.nets.eval()
+    gnn.nets.cuda()
     with torch.no_grad():
         traced_script_module = torch.jit.trace(gnn.nets, args[:3])
         traced_script_module.save(f'downloads/resource/gnn_message_passing.pt')
-        x = traced_script_module(x, edge_index, edge_attr)
+        x = traced_script_module(x.cuda(), edge_index.cuda(), edge_attr.cuda())
         # x = x[-1]
         x = torch.stack([x[edge_index[0]==nid].reshape(-1) for nid in torch.arange(25)])
         gnn.classifier.eval()
-        traced_script_module = torch.jit.trace(gnn.classifier, x)
+        gnn.classifier.cuda()
+        traced_script_module = torch.jit.trace(gnn.classifier, x.cuda())
         traced_script_module.save(f'downloads/resource/gnn_classifier.pt')
 
     

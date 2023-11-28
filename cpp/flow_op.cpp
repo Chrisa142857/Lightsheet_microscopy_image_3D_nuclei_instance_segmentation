@@ -120,7 +120,7 @@ std::vector<torch::Tensor> flow_3DtoNIS(
     
     for (int64_t iter = 0; iter < iter_num; ++iter) {
         print_with_time("Extend iter ");
-        std::cout << iter+1 << ","; 
+        std::cout << iter+1 << ", "; 
         for (int64_t k = 0; k < pix_copy.size(); ++k) {
             if (iter == 0) {
                 pix_copy[k] = pix[k].unbind(0);
@@ -164,6 +164,11 @@ std::vector<torch::Tensor> flow_3DtoNIS(
     std::cout << "Ultra big mask threshold: " << big << ". Start ";
     int64_t ilabel = 0;
     for (int64_t k = 0; k < pix_copy.size(); ++k) {    
+        if (pix_copy[k][0].size(0)==0) {
+            // std::cout<<" [ALL BG] | ";
+            remove_c += 1;
+            continue;
+        } 
         torch::Tensor is_fg = fg.index({pix_copy[k][0], pix_copy[k][1], pix_copy[k][2]});
         torch::Tensor is_bg = torch::logical_not(is_fg);
         if (is_bg.all().item<bool>()) {
@@ -185,7 +190,7 @@ std::vector<torch::Tensor> flow_3DtoNIS(
             (coord[1].max() + coord[1].min()) / 2,
             (coord[2].max() + coord[2].min()) / 2
         });
-        M.index_put_({coord[0], coord[1], coord[2]}, ilabel);
+        M.index_put_({coord[0], coord[1], coord[2]}, torch::tensor(ilabel, torch::kLong));
         // coords.push_back(torch::cat({torch::stack(coord, 1), torch::ones(coord[0].size(0), 1, coord.options()) * (1 + k - remove_c)}, 1));
         coords.push_back(torch::stack(coord, 1));
         labels.push_back(ilabel);
