@@ -1,15 +1,16 @@
 #include "loop_unet.h"
 
 
-torch::Tensor loop_unet(
+std::vector<torch::Tensor> loop_unet(
     std::vector<std::string> img_fns, 
     std::vector<std::string> mask_fns, 
     torch::jit::script::Module get_tile_param,
     torch::jit::script::Module preproc,
     torch::jit::script::Module nis_unet,
-    torch::jit::script::Module postproc,
+    // torch::jit::script::Module postproc,
     std::string device
   ) {
+    namespace F = torch::nn::functional;
     /*
       Loop Unet for one chunk
     */
@@ -18,6 +19,8 @@ torch::Tensor loop_unet(
     int64_t file_loaded = 0;
     // Loop the list of files
     torch::Tensor img;
+    torch::Tensor first_img;
+    torch::Tensor last_img;
     std::future<torch::Tensor> img_loader;
     for (int64_t i=0; i<img_fns.size(); i++) {
         std::string img_path = img_fns[i];
@@ -36,7 +39,19 @@ torch::Tensor loop_unet(
         file_loaded++;
         
         // Get image info
-        torch::IntArrayRef org_img_shape = img.sizes();
+        // torch::IntArrayRef org_img_shape = img.sizes();
+        std::vector<int64_t> org_img_shape;
+        org_img_shape.push_back(img.size(0));
+        org_img_shape.push_back(img.size(1));
+        org_img_shape.push_back(img.size(2));
+        // std::cout<<org_img_shape<<"\n";
+        if (i==0){
+            first_img = img[0].detach().cpu().clone();
+        }
+        if ((i+1)==img_fns.size()) {
+            last_img = img[0].detach().cpu().clone();
+        }
+        // print_size(img);
         // Pre-process image
         torch::Tensor area = torch::tensor(org_img_shape[1] * org_img_shape[2]);
         std::vector<torch::jit::IValue> inputs;
@@ -45,6 +60,7 @@ torch::Tensor loop_unet(
         img = preproc(inputs).toTensor();
         std::vector<torch::Tensor> padded_outputs = pad_image(img);
         img = padded_outputs[0];
+        
         torch::IntArrayRef img_shape = img.sizes();
         torch::Tensor pad_ysub = padded_outputs[1];
         torch::Tensor pad_xsub = padded_outputs[2];
@@ -60,9 +76,9 @@ torch::Tensor loop_unet(
         inputs.push_back(overlap);
         inputs.push_back(mask);
         auto tile_param = get_tile_param(inputs).toTuple();
-        auto tile_ysub = tile_param->elements()[0].toTensor();
-        auto tile_xsub = tile_param->elements()[1].toTensor();
-        auto tile_idx = tile_param->elements()[2].toTensor().to(device);
+        auto tile_ysub = tile_param->elements()[0].toTensor(); // y of the meshgrid
+        auto tile_xsub = tile_param->elements()[1].toTensor(); // x of the meshgrid
+        auto tile_idx = tile_param->elements()[2].toTensor().to(device); // idx of tiles need to compute
         print_size(tile_idx);
         // Batching the image to input to Unet
         int64_t tile_num = tile_ysub.size(0);
@@ -72,42 +88,64 @@ torch::Tensor loop_unet(
         torch::Tensor unet_inbatch;
         torch::Tensor yf = torch::zeros({tile_num, 3, 224, 224});
         torch::Tensor irange;
-        for (int64_t i = 0; i < tile_idx.size(0); i++) {
+        int64_t j;
+        int64_t bi;
+        for (j = 0; j < tile_idx.size(0); j++) {
             auto tile = img
-                .slice(1, tile_ysub[tile_idx[i]][0].item<int64_t>(), tile_ysub[tile_idx[i]][1].item<int64_t>())
-                .slice(2, tile_xsub[tile_idx[i]][0].item<int64_t>(), tile_xsub[tile_idx[i]][1].item<int64_t>());
+                .slice(1, tile_ysub[tile_idx[j]][0].item<int64_t>(), tile_ysub[tile_idx[j]][1].item<int64_t>())
+                .slice(2, tile_xsub[tile_idx[j]][0].item<int64_t>(), tile_xsub[tile_idx[j]][1].item<int64_t>());
             unet_inputs.push_back(tile);
-            if ((i+1) % batch_size == 0){ 
-                /*
-                TODO
-                 The last batch was skipped, Debug here.
-                */
+            if ((j+1) % batch_size == 0){ 
+                bi = (j+1) / batch_size;
                 unet_inbatch = torch::stack(unet_inputs, 0);
                 unet_inputs.clear();
-                std::cout << "Batch " << (i+1) / batch_size << "\t";
+                std::cout << "Batch " << bi << "\t";
                 print_size(unet_inbatch);
                 inputs.clear();
                 inputs.push_back(unet_inbatch);
                 auto unet_outputs = nis_unet(inputs).toTuple();
-                irange = tile_idx.slice(0, i+1-batch_size, i+1);
+                irange = tile_idx.slice(0, j+1-batch_size, j+1);
                 torch::Tensor y = unet_outputs->elements()[0].toTensor().cpu();
                 yf.index_put_({irange, "..."}, y);
             }
         }
+        /*
+            The last batch was skipped, compute here.
+        */
+        unet_inbatch = torch::stack(unet_inputs, 0);
+        std::cout << "Batch " << bi + 1 << "\t";
+        print_size(unet_inbatch);
+        inputs.clear();
+        inputs.push_back(unet_inbatch);
+        auto unet_outputs = nis_unet(inputs).toTuple();
+        irange = tile_idx.slice(0, j-unet_inputs.size(), j);
+        torch::Tensor y = unet_outputs->elements()[0].toTensor().cpu();
+        yf.index_put_({irange, "..."}, y);
+        /*
+            The last batch was computed.
+        */
         yf = yf.to(device);
         tile_ysub = tile_ysub.to(torch::kLong).to(device);
         tile_xsub = tile_xsub.to(torch::kLong).to(device);
         yf = average_tiles(yf, tile_ysub, tile_xsub, img_shape[1], img_shape[2]);
-        yf = yf.slice(1, pad_ysub[0].item<int64_t>(), pad_ysub[-1].item<int64_t>())
-               .slice(2, pad_xsub[0].item<int64_t>(), pad_xsub[-1].item<int64_t>());
+        yf = yf.slice(1, 0, img_shape[1])
+               .slice(2, 0, img_shape[2]);
+        yf = yf.slice(1, pad_ysub[0].item<int64_t>(), pad_ysub[-1].item<int64_t>()+1)
+               .slice(2, pad_xsub[0].item<int64_t>(), pad_xsub[-1].item<int64_t>()+1);
                
-        inputs.clear();
-        inputs.push_back(yf);
-        yf = postproc(inputs).toTensor();
+        yf = F::interpolate(
+            yf.unsqueeze(0), 
+            F::InterpolateFuncOptions().size(std::vector<int64_t>({org_img_shape[1], org_img_shape[2]})).mode(torch::kBilinear).align_corners(false)
+        );
+        yf = torch::permute(yf[0], {1, 2, 0});
         flow2d_list.push_back(yf.detach().cpu());
     }
     torch::Tensor flow2d = torch::stack(flow2d_list, 0);
-    return flow2d;
+    std::vector<torch::Tensor> output;
+    output.push_back(flow2d);
+    output.push_back(first_img);
+    output.push_back(last_img);
+    return output;
 }
 
 

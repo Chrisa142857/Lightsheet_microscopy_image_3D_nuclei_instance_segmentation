@@ -20,7 +20,7 @@ def main():
     in_resolution = (4, .75, .75)
     scale_r = [i/s for i, s in zip(in_resolution, std_resolution)]
     vol_scale = scale_r[0]*scale_r[1]*scale_r[2]
-    _r = '/lichtman/ziquanw/Lightsheet/results/P4'
+    _r = '/cajal/ACMUSERS/ziquanw/Lightsheet/results/P4'
     mask_r = '/lichtman/Felix/Lightsheet/P4/%s/output_%s/registered/%s_MASK_topro_25_all.nii'
     save_roi_id = 16001
     data_list = []
@@ -29,7 +29,11 @@ def main():
         # if len(fs) > 0: break
     out = []
     for remap_fn in data_list:
-        if 'pair3' not in remap_fn and 'pair20' not in remap_fn: continue
+        
+        # try:
+        # if 'pair3' not in remap_fn and 'pair20' not in remap_fn: continue
+        # if 'pair14' not in remap_fn or 'L73D766P5' not in remap_fn: continue
+        if 'L79D769P8' not in remap_fn: continue
         brain_tag = os.path.dirname(remap_fn).split('/')[-1]
         pair_tag = os.path.dirname(os.path.dirname(remap_fn)).split('/')[-1]
         print(datetime.now(), "Statistic brain", pair_tag, brain_tag)
@@ -37,7 +41,9 @@ def main():
         nis_fn = remap_fn.replace('_remap.json', '_NIS_results.h5')
         assert os.path.exists(nis_fn), f'{brain_tag} has not complete NIS'
         assert os.path.exists(mask_fn), f'{brain_tag} has no RoI mask'
-        orig_roi_mask = torch.from_numpy(np.transpose(nib.load(mask_fn).get_fdata(), (2, 0, 1))[:, :, ::-1].copy()).to('cuda:1')
+        orig_roi_mask = torch.from_numpy(np.transpose(nib.load(mask_fn).get_fdata(), (2, 0, 1)).copy()).to('cuda:1') #[:, :, ::-1]
+        # print(orig_roi_mask.shape)
+        # exit()
         roi_mask = orig_roi_mask.clone()
         assert (roi_mask==orig_roi_mask).all()
         roi_remap = {}
@@ -140,7 +146,6 @@ def main():
                 save_vols = vols.float()
         
         out.append(o)
-        
         center_pt = center_pt[center_loc, :]
         center_pt_head = 'center X,center Y,center Z,Volume\n'
         center_pt = torch.cat([center_pt, save_vols.unsqueeze(1)], -1)
@@ -148,7 +153,9 @@ def main():
         center_csv = center_csv[2:-2].replace('], [','\n')
         with open(os.path.join(_r, 'NIS_%s_%s_RoI%d.csv' % (pair_tag, brain_tag, save_roi_id)), 'w') as f:
             f.write(center_pt_head + center_csv)
-    
+        # except:
+        #     continue
+    exit()
     csv = 'pair ID,brain ID,'
     roi_ids = []
     for o in out:

@@ -595,7 +595,6 @@ def pad_image_ND(img0, div=16, extra = 1):
         pads = np.array([[0,0], [xpad1,xpad2], [ypad1, ypad2]])
 
     I = np.pad(img0,pads, mode='constant')
-
     Ly, Lx = img0.shape[-2:]
     ysub = np.arange(xpad1, xpad1+Ly)
     xsub = np.arange(ypad1, ypad1+Lx)

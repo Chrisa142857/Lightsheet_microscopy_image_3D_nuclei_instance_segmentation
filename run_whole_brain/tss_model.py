@@ -145,11 +145,11 @@ class MetaLayer(torch.nn.Module):
         Returns: Updated Node and Edge Feature matrices
 
         """
-        row, col = edge_index
+        # row, col = edge_index
 
         # Edge Update
         if self.edge_model is not None:
-            edge_attr = self.edge_model(x[row], x[col], edge_attr)
+            edge_attr = self.edge_model(x[edge_index[0]], x[edge_index[1]], edge_attr)
 
         # Node Update
         if self.node_model is not None:
@@ -185,15 +185,15 @@ class NodeModel(nn.Module):
         self.node_agg_fn = node_agg_fn
 
     def forward(self, x, edge_index, edge_attr):
-        row, col = edge_index
-        flow_out_mask = row < col
-        flow_out_row, flow_out_col = row[flow_out_mask], col[flow_out_mask]
+        # row, col = edge_index
+        flow_out_mask = edge_index[0] < edge_index[1]
+        flow_out_row, flow_out_col = edge_index[0][flow_out_mask], edge_index[1][flow_out_mask]
         flow_out_input = torch.cat([x[flow_out_col], edge_attr[flow_out_mask]], dim=1)
         flow_out = self.flow_out_mlp(flow_out_input)
         flow_out = self.node_agg_fn(flow_out, flow_out_row, x.size(0))
 
-        flow_in_mask = row > col
-        flow_in_row, flow_in_col = row[flow_in_mask], col[flow_in_mask]
+        flow_in_mask = edge_index[0] > edge_index[1]
+        flow_in_row, flow_in_col = edge_index[0][flow_in_mask], edge_index[1][flow_in_mask]
         flow_in_input = torch.cat([x[flow_in_col], edge_attr[flow_in_mask]], dim=1)
         flow_in = self.flow_in_mlp(flow_in_input)
 
