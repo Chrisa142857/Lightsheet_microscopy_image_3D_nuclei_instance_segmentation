@@ -6,11 +6,9 @@
 
 std::vector<torch::Tensor> loop_unet(
     std::vector<std::string> img_fns, 
-    // std::vector<std::string> mask_fns, 
-    torch::jit::script::Module get_tile_param,
-    torch::jit::script::Module preproc,
-    torch::jit::script::Module nis_unet,
-    // torch::jit::script::Module postproc,
+    torch::jit::script::Module* get_tile_param,
+    torch::jit::script::Module* preproc,
+    torch::jit::script::Module* nis_unet,
     std::string device
   );
 

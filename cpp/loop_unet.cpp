@@ -3,15 +3,17 @@
 
 std::vector<torch::Tensor> loop_unet(
     std::vector<std::string> img_fns, 
-    torch::jit::script::Module get_tile_param,
-    torch::jit::script::Module preproc,
-    torch::jit::script::Module nis_unet,
+    torch::jit::script::Module* get_tile_param,
+    torch::jit::script::Module* preproc,
+    torch::jit::script::Module* nis_unet,
     std::string device
   ) {
     namespace F = torch::nn::functional;
     /*
       Loop Unet for one chunk
     */
+    preproc->to(device);
+    get_tile_param->to(device);
     std::vector<torch::Tensor> flow2d_list;
     int64_t batch_size = 200;
     int64_t file_loaded = 0;
@@ -50,7 +52,7 @@ std::vector<torch::Tensor> loop_unet(
         std::vector<torch::jit::IValue> inputs;
         inputs.push_back(img);
         inputs.push_back(area);
-        img = preproc(inputs).toTensor();
+        img = preproc->forward(inputs).toTensor();
         std::vector<torch::Tensor> padded_outputs = pad_image(img);
         img = padded_outputs[0];
         
@@ -70,8 +72,8 @@ std::vector<torch::Tensor> loop_unet(
         print_size(tile_ysub);
         // Batching the image to input to Unet
         int64_t tile_num = tile_ysub.size(0);
-        nis_unet.eval();
-        nis_unet.to(device);
+        nis_unet->eval();
+        nis_unet->to(device);
         std::vector<torch::Tensor> unet_inputs;
         torch::Tensor unet_inbatch;
         torch::Tensor yf = torch::zeros({tile_num, 3, 224, 224});
@@ -100,7 +102,7 @@ std::vector<torch::Tensor> loop_unet(
                 print_size(unet_inbatch);
                 inputs.clear();
                 inputs.push_back(unet_inbatch);
-                auto unet_outputs = nis_unet(inputs).toTuple();
+                auto unet_outputs = nis_unet->forward(inputs).toTuple();
                 torch::Tensor y = unet_outputs->elements()[0].toTensor().cpu();
                 yf.index_put_({torch::tensor(irange), "..."}, y);
                 irange.clear();
@@ -109,13 +111,13 @@ std::vector<torch::Tensor> loop_unet(
         /*
             The last batch was skipped, compute here.
         */
-        if (unet_inputs.size() >= 0){ 
+        if (unet_inputs.size() > 0){ 
             unet_inbatch = torch::stack(unet_inputs, 0);
             std::cout << "Batch " << bi + 1 << "\t";
             print_size(unet_inbatch);
             inputs.clear();
             inputs.push_back(unet_inbatch);
-            auto unet_outputs = nis_unet(inputs).toTuple();
+            auto unet_outputs = nis_unet->forward(inputs).toTuple();
             torch::Tensor y = unet_outputs->elements()[0].toTensor().cpu();
             yf.index_put_({torch::tensor(irange), "..."}, y);
         }
