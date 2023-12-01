@@ -44,23 +44,26 @@ class StitchModel(nn.Module):
         return x
 
 def export_gnn():
+    device = "cuda:1"
     gnn = StitchModel()
     x = torch.randn(100, 209)
     edge_index = torch.stack([torch.cat([torch.arange(25) for _ in range(2)]), torch.randint(100, (50,))])
     edge_attr = torch.randn(50, 6)
-    args = (x.cuda(), edge_index.cuda(), edge_attr.cuda(), torch.arange(25))
+    args = (x.to(device), edge_index.to(device), edge_attr.to(device), torch.arange(25))
+    # args = (x, edge_index, edge_attr, torch.arange(25))
     gnn.nets.eval()
-    gnn.nets.cuda()
+    gnn.nets.to(device)
     with torch.no_grad():
         traced_script_module = torch.jit.trace(gnn.nets, args[:3])
-        traced_script_module.save(f'downloads/resource/gnn_message_passing.pt')
-        x = traced_script_module(x.cuda(), edge_index.cuda(), edge_attr.cuda())
+        traced_script_module.save(f'downloads/resource/gnn_message_passing_{device}.pt')
+        x = traced_script_module(x.to(device), edge_index.to(device), edge_attr.to(device))
+        # x = traced_script_module(x, edge_index, edge_attr)
         # x = x[-1]
         x = torch.stack([x[edge_index[0]==nid].reshape(-1) for nid in torch.arange(25)])
         gnn.classifier.eval()
-        gnn.classifier.cuda()
-        traced_script_module = torch.jit.trace(gnn.classifier, x.cuda())
-        traced_script_module.save(f'downloads/resource/gnn_classifier.pt')
+        gnn.classifier.to(device)
+        traced_script_module = torch.jit.trace(gnn.classifier, x.to(device))
+        traced_script_module.save(f'downloads/resource/gnn_classifier_{device}.pt')
 
     
 
@@ -364,7 +367,7 @@ def interpolate_wrap(flow_2d):
     return torch.nn.functional.interpolate(flow_2d.unsqueeze(0), scale_factor=scale_r, mode='nearest-exact').squeeze()
 
 def export_sim_gradz():
-    device='cuda:0'
+    device='cuda:1'
     yx_flow = torch.randn(2, 5000, 5000).to(device)
     cellprob = torch.randn(5000, 5000).to(device)
     pre_yx_flow = torch.randn(2, 5000, 5000).to(device)
@@ -373,8 +376,8 @@ def export_sim_gradz():
     args = (yx_flow, cellprob, pre_yx_flow, next_yx_flow)
     # grad_2d_to_3d(args)
     traced_script_module = torch.jit.trace(sim_grad_z, args)
-    device = device.replace(':', '')
-    traced_script_module.save(f'downloads/resource/grad_2Dto3D.pt')
+    # device = device.replace(':', '')
+    traced_script_module.save(f'downloads/resource/grad_2Dto3D_{device}.pt')
 
 def sim_grad_z(yx_flow, cellprob, pre_yx_flow, next_yx_flow):
     stagen = 7
@@ -517,6 +520,7 @@ def linspace(start: torch.Tensor, stop: torch.Tensor, num: torch.Tensor):
     return out
 
 def export_preproc_img(device):
+    device=  'cuda:1'
     img = torch.randn(1, 8113, 8452).float()
     trained_model = 'downloads/train_data/data_P4_P15_rescaled-as-P15/train/models/cellpose_residual_on_style_on_concatenation_off_train_2023_05_29_22_42_54.153497_epoch_21'
     model = NISModel(device=torch.device('cpu'), pretrained_model=trained_model)
@@ -524,13 +528,13 @@ def export_preproc_img(device):
     # print(rescale)
     # assert rescale == 1.437293
     area = torch.LongTensor([img.shape[1]*img.shape[2]])[0]
-    args = (img.to('cuda:0'), area)
+    args = (img.to(device), area)
     # print(preproc(*args).shape)
     # exit()
     traced_script_module = torch.jit.trace(preproc, args)
     # device = device.replace(':', '')
-    traced_script_module.save(f'downloads/resource/preproc_img1xLyxLx.pt')
-    out = traced_script_module(torch.randn(1, 800, 800).float().to('cuda:0'), torch.LongTensor([800*800])[0])
+    traced_script_module.save(f'downloads/resource/preproc_img1xLyxLx_{device}.pt')
+    out = traced_script_module(torch.randn(1, 800, 800).float().to(device), torch.LongTensor([800*800])[0])
     print(out.shape)
 
 def preproc(img, area):

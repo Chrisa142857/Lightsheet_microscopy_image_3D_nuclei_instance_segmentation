@@ -3,8 +3,8 @@
 #include "utils.h"
 
 torch::Tensor gnn_stitch_gap(
-    torch::jit::script::Module gnn_message_passing, 
-    torch::jit::script::Module gnn_classifier,
+    torch::jit::script::Module* gnn_message_passing, 
+    torch::jit::script::Module* gnn_classifier,
     torch::Tensor img1, 
     torch::Tensor mask1, 
     torch::Tensor flow1,

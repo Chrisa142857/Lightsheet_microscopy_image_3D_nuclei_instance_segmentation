@@ -1,8 +1,8 @@
 #include "gnn_stitch_gap.h"
 
 torch::Tensor gnn_stitch_gap(
-    torch::jit::script::Module gnn_message_passing, 
-    torch::jit::script::Module gnn_classifier,
+    torch::jit::script::Module* gnn_message_passing, 
+    torch::jit::script::Module* gnn_classifier,
     torch::Tensor img1, // tgt
     torch::Tensor mask1, 
     torch::Tensor flow1,
@@ -13,10 +13,10 @@ torch::Tensor gnn_stitch_gap(
 ) {
     img1 = norm_tensor(img1);
     img2 = norm_tensor(img2);
-    gnn_classifier.eval();
-    gnn_message_passing.eval();
-    gnn_classifier.to(device);
-    gnn_message_passing.to(device);
+    gnn_classifier->eval();
+    gnn_message_passing->eval();
+    gnn_classifier->to(device);
+    gnn_message_passing->to(device);
     print_with_time("Start build graph\n");
     std::vector<torch::Tensor> graph = build_graph(img1, mask1, flow1, img2, mask2, flow2, device);
     print_with_time("Done, build graph: node ");
@@ -26,7 +26,7 @@ torch::Tensor gnn_stitch_gap(
     gnn_input.push_back(graph[1].to(device));
     gnn_input.push_back(graph[2].to(device));
     print_with_time("Start GNN\n");
-    torch::Tensor feat = gnn_message_passing(gnn_input).toTensor();
+    torch::Tensor feat = gnn_message_passing->forward(gnn_input).toTensor();
     std::vector<torch::Tensor> feat_vec;
     for(int64_t nid=0; nid < graph[5].size(0); nid++){
         feat_vec.push_back(feat.index({graph[1][0]==nid}).reshape(-1));
@@ -34,7 +34,7 @@ torch::Tensor gnn_stitch_gap(
     feat = torch::stack(feat_vec);
     gnn_input.clear();
     gnn_input.push_back(feat.to(device));
-    torch::Tensor logits = gnn_classifier(gnn_input).toTensor();
+    torch::Tensor logits = gnn_classifier->forward(gnn_input).toTensor();
     print_with_time("Done GNN, output ");
     print_size(logits);
     torch::Tensor pred = logits.argmax(1);
@@ -86,6 +86,7 @@ std::vector<torch::Tensor> build_graph(
     std::cout<<"Done\n";
     // edges = {edge_id, edge_attr, topn_id}
     print_with_time("Edge gather");
+    // std::string dev_edge = "cpu";
     std::vector<torch::Tensor> edges = get_edge(feat1[3], feat2[3], feat1[2], feat2[2], device);
     std::cout<<"Done\n";
     // graph = {x, edge_id, edge_attr, node0_oldid2new, node1_oldid2new, topn_id}
@@ -121,7 +122,22 @@ std::vector<torch::Tensor> get_edge(
         torch::Tensor d = center1[i] - center2;
         torch::Tensor dist = (d*d).sum(1).sqrt();
         torch::Tensor ind0 = torch::tensor(std::vector<int64_t>({i})).repeat(topn).to(device); // [topn]
-        torch::Tensor ind1 = torch::argsort(dist).slice(0, 0, topn); // [topn]
+        // torch::Tensor ind1 = torch::argsort(dist).slice(0, 0, topn); // [topn]
+        std::vector<torch::Tensor> inds;
+        for (int64_t j=0; j<topn; j++){
+            if (j>0) {
+                inds.push_back(torch::cat({
+                    dist.slice(0, 0, inds[j-1].item<int64_t>()), 
+                    dist.slice(0, inds[j-1].item<int64_t>()+1, dist.size(0))
+                }).argmin());
+                if (inds[j].item<int64_t>() >= inds[j-1].item<int64_t>()){
+                    inds[j] = inds[j] + 1;
+                }
+            } else {
+                inds.push_back(dist.argmin());
+            }
+        }
+        torch::Tensor ind1 = torch::stack(inds); // [topn]
         topn_ind.push_back(ind1);
         edge_id0.push_back(ind0); 
         edge_id1.push_back(ind1+N1); 

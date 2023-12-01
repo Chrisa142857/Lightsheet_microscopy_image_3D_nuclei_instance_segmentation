@@ -402,4 +402,4 @@ class TSS(nn.Module):
             dec_edge_feats, _ = self.classifier(latent_edge_feats)
             outputs_dict['classified_edges'].append(dec_edge_feats)
         
-        return outputs_dict['classified_edges']
+        return outputs_dict['classified_edges'][-1]

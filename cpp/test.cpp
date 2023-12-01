@@ -16,14 +16,34 @@
 
 using namespace HighFive;
 
-std::vector<torch::Tensor> nis_obtain(torch::jit::script::Module flow_3DtoSeed, torch::Tensor dP, torch::Tensor cp_mask){
-  torch::Tensor p = index_flow(dP * cp_mask / 5., dP.size(1), dP.size(2), dP.size(3), 139);
+void save_tensor(torch::Tensor tensor, std::string fn){
+  print_with_time("Save tensor as .zip: ");
+  print_size(tensor);
+  auto bytes = torch::pickle_save(tensor); //this is actually a std::vector of char
+  std::ofstream fout(fn, std::ios::out | std::ios::binary);
+  fout.write(bytes.data(), bytes.size());
+  fout.close();
+}
+
+std::vector<torch::Tensor> nis_obtain(torch::jit::script::Module flow_3DtoSeed, torch::Tensor flow3d, float cellprob_threshold, int64_t ilabel, std::string savefn){
+  torch::Tensor p = index_flow(
+    flow3d.index({torch::indexing::Slice(torch::indexing::None, 3), "..."}) * (flow3d.index({3, "..."})>cellprob_threshold) / 5., 
+    flow3d.size(1), 
+    flow3d.size(2), 
+    flow3d.size(3), 139);
   std::vector<torch::Tensor> nis_outputs = flow_3DtoNIS(
     // meshgrider,
     flow_3DtoSeed,
     p, 
-    cp_mask, 20
+    (flow3d.index({3, "..."})>cellprob_threshold), 
+    ilabel, 20
     );
+    
+  save_tensor(nis_outputs[0], savefn+"_seg.zip");
+  save_tensor(nis_outputs[1], savefn+"_contour.zip");
+  save_tensor(nis_outputs[2], savefn+"_instance_label.zip");
+  save_tensor(nis_outputs[3], savefn+"_instance_volume.zip");
+  save_tensor(nis_outputs[4], savefn+"_instance_center.zip");
   return nis_outputs;
 }
 
@@ -31,11 +51,9 @@ std::vector<torch::Tensor> gpu_process(
   int64_t i, 
   int64_t chunk_depth, 
   std::vector<std::string> img_fns,
-  // std::vector<std::string> mask_fns,
   torch::jit::script::Module get_tile_param, 
   torch::jit::script::Module preproc, 
-  torch::jit::script::Module nis_unet, 
-  // torch::jit::script::Module postproc, 
+  torch::jit::script::Module* nis_unet, 
   torch::jit::script::Module interpolater,
   torch::jit::script::Module grad_2d_to_3d,
   torch::Tensor pre_final_yx_flow,
@@ -55,11 +73,9 @@ std::vector<torch::Tensor> gpu_process(
   */
   std::vector<torch::Tensor> unet_output = loop_unet(
     img_onechunk, 
-    // mask_onechunk, 
-    get_tile_param,
-    preproc,
+    &get_tile_param,
+    &preproc,
     nis_unet,
-    // postproc, 
     device
   );
   torch::Tensor flow2d = unet_output[0];
@@ -79,13 +95,13 @@ std::vector<torch::Tensor> gpu_process(
   if (i > 0) {
     flow2d = torch::cat({pre_final_yx_flow.unsqueeze(1), flow2d}, 1);
   }
-  pre_final_yx_flow = flow2d.index({torch::indexing::Slice(torch::indexing::None, 3, 1), -1}).clone();
-  pre_last_second = flow2d.index({torch::indexing::Slice(torch::indexing::None, 2, 1), -2}).clone();
+  pre_final_yx_flow = flow2d.index({torch::indexing::Slice(torch::indexing::None, 3, 1), -1}).detach().clone();
+  pre_last_second = flow2d.index({torch::indexing::Slice(torch::indexing::None, 2, 1), -2}).detach().clone();
   bool is_first_chunk = i == 0;
 
-  torch::Tensor flow3d = flow_2Dto3D(flow2d, pre_last_second, grad_2d_to_3d, device, is_first_chunk);
-  torch::Tensor first_flow = flow3d.index({torch::indexing::Slice(), 0, "..."});
-  torch::Tensor last_flow = flow3d.index({torch::indexing::Slice(), -1, "..."});
+  torch::Tensor flow3d = flow_2Dto3D(flow2d, pre_last_second, &grad_2d_to_3d, device, is_first_chunk);
+  torch::Tensor first_flow = flow3d.index({torch::indexing::Slice(), 0, "..."}).detach().clone();
+  torch::Tensor last_flow = flow3d.index({torch::indexing::Slice(), -1, "..."}).detach().clone();
   std::vector<torch::Tensor> output;
   output.push_back(flow3d);
   output.push_back(pre_final_yx_flow);
@@ -97,12 +113,40 @@ std::vector<torch::Tensor> gpu_process(
   return output;
 }
 
+std::vector<torch::Tensor> stitch_process(
+  std::vector<torch::Tensor> remap_all,
+  torch::jit::script::Module* gnn_message_passing, 
+  torch::jit::script::Module* gnn_classifier, 
+  torch::Tensor pre_last_img,
+  torch::Tensor pre_last_mask,
+  torch::Tensor pre_last_flow,
+  torch::Tensor first_img,
+  torch::Tensor first_mask,
+  torch::Tensor first_flow,
+  std::string remapfn,
+  std::string device
+) {
+    // Stitch the gap between two chunks
+    print_with_time("Stitch the gap between two chunks\n");
+    torch::Tensor tgt_img = pre_last_img;
+    torch::Tensor tgt_mask = pre_last_mask;
+    torch::Tensor tgt_flow = pre_last_flow;
+    torch::Tensor src_img = first_img;
+    torch::Tensor src_mask = first_mask;
+    torch::Tensor src_flow = first_flow;
+    torch::Tensor remap = gnn_stitch_gap(gnn_message_passing, gnn_classifier, tgt_img, tgt_mask, tgt_flow, src_img, src_mask, src_flow, device);
+    remap_all.push_back(remap);
+    save_tensor(torch::cat(remap_all, -1), remapfn);
+    return remap_all;
+}
+
 int main(int argc, const char* argv[]) {
   std::cout << "LibTorch version: "
     << TORCH_VERSION_MAJOR << "."
     << TORCH_VERSION_MINOR << "."
     << TORCH_VERSION_PATCH << std::endl;
-  std::string device = "cuda:0";
+  // std::string device = "cuda:0";
+  std::string device(argv[3]);
   int64_t chunk_depth = 30;
   float cellprob_threshold = 0.1;
 
@@ -116,22 +160,23 @@ int main(int argc, const char* argv[]) {
   torch::jit::script::Module gnn_classifier;
   torch::jit::script::Module flow_3DtoSeed;
   get_tile_param = torch::jit::load("/ram/USERS/ziquanw/Lightsheet_microscopy_image_3D_nuclei_instance_segmentation/downloads/resource/get_model_tileparam_cpu.pt");
-  preproc = torch::jit::load("/ram/USERS/ziquanw/Lightsheet_microscopy_image_3D_nuclei_instance_segmentation/downloads/resource/preproc_img1xLyxLx.pt");
+  preproc = torch::jit::load("/ram/USERS/ziquanw/Lightsheet_microscopy_image_3D_nuclei_instance_segmentation/downloads/resource/preproc_img1xLyxLx_"+std::string(argv[3])+".pt");
   nis_unet = torch::jit::load("/ram/USERS/ziquanw/Lightsheet_microscopy_image_3D_nuclei_instance_segmentation/downloads/resource/nis_unet_cpu.pt");
-  // postproc = torch::jit::load("/ram/USERS/ziquanw/Lightsheet_microscopy_image_3D_nuclei_instance_segmentation/downloads/resource/postproc_unet.pt");
-  grad_2d_to_3d = torch::jit::load("/ram/USERS/ziquanw/Lightsheet_microscopy_image_3D_nuclei_instance_segmentation/downloads/resource/grad_2Dto3D.pt");
+  grad_2d_to_3d = torch::jit::load("/ram/USERS/ziquanw/Lightsheet_microscopy_image_3D_nuclei_instance_segmentation/downloads/resource/grad_2Dto3D_"+std::string(argv[3])+".pt");
   interpolater = torch::jit::load("/ram/USERS/ziquanw/Lightsheet_microscopy_image_3D_nuclei_instance_segmentation/downloads/resource/interpolate_ratio_1.6x1x1.pt");
-  gnn_message_passing = torch::jit::load("/ram/USERS/ziquanw/Lightsheet_microscopy_image_3D_nuclei_instance_segmentation/downloads/resource/gnn_message_passing.pt");
-  gnn_classifier = torch::jit::load("/ram/USERS/ziquanw/Lightsheet_microscopy_image_3D_nuclei_instance_segmentation/downloads/resource/gnn_classifier.pt");
+  gnn_message_passing = torch::jit::load("/ram/USERS/ziquanw/Lightsheet_microscopy_image_3D_nuclei_instance_segmentation/downloads/resource/gnn_message_passing_"+std::string(argv[3])+".pt");
+  gnn_classifier = torch::jit::load("/ram/USERS/ziquanw/Lightsheet_microscopy_image_3D_nuclei_instance_segmentation/downloads/resource/gnn_classifier_"+std::string(argv[3])+".pt");
   flow_3DtoSeed = torch::jit::load("/ram/USERS/ziquanw/Lightsheet_microscopy_image_3D_nuclei_instance_segmentation/downloads/resource/flow_3DtoSeed.pt");
-  std::string pair_tag = "pair15";
-  std::string brain_tag = "L73D766P4";
+  // std::string pair_tag = "pair15";
+  // std::string brain_tag = "L73D766P4";
+  std::string pair_tag(argv[1]);
+  std::string brain_tag(argv[2]);
   std::string img_dir = "/lichtman/Felix/Lightsheet/P4/"+pair_tag+"/output_"+brain_tag+"/stitched/";
-  std::string mask_dir = "/cajal/ACMUSERS/ziquanw/Lightsheet/roi_mask/"+pair_tag+"/"+brain_tag+"/";
-  std::string h5fn = "/cajal/ACMUSERS/ziquanw/Lightsheet/results/P4/"+pair_tag+"/"+brain_tag+"/"+brain_tag+"_NIScpp_results.h5";
+  // std::string mask_dir = "/cajal/ACMUSERS/ziquanw/Lightsheet/roi_mask/"+pair_tag+"/"+brain_tag+"/";
+  std::string h5fn = "/cajal/ACMUSERS/ziquanw/Lightsheet/results/P4/"+pair_tag+"/"+brain_tag+"/"+brain_tag+"_NIScpp_results";
   std::string remapfn = "/cajal/ACMUSERS/ziquanw/Lightsheet/results/P4/"+pair_tag+"/"+brain_tag+"/"+brain_tag+"_remap.zip";
   auto allimgs = listdir_sorted(img_dir);
-  auto allmasks = listdir_sorted(mask_dir);
+  // auto allmasks = listdir_sorted(mask_dir);
   std::vector<std::string> img_fns;
   // std::vector<std::string> mask_fns;
   for (std::string file : allimgs ) {
@@ -139,24 +184,22 @@ int main(int argc, const char* argv[]) {
       img_fns.push_back(file);
     }
   }
-  // for (std::string file : allmasks ) {
-  //   mask_fns.push_back(file);
-  // }
-  // if (mask_fns.size() != img_fns.size()) {exit(0);}
   std::cout<<"There are "<<img_fns.size()<<" .tif images\n";
 
   print_with_time("Initialize H5 database to store NIS results\n");
   std::vector<hsize_t> whole_brain_shape;
   torch::Tensor img0 = load_tif_as_tensor(img_fns[0]);
   whole_brain_shape.push_back(img_fns.size());
-  whole_brain_shape.push_back(img0.size(0));
   whole_brain_shape.push_back(img0.size(1));
-  std::vector<DataSet> dsetlist = init_h5data(h5fn, whole_brain_shape);
+  whole_brain_shape.push_back(img0.size(2));
+  // std::vector<DataSet> dsetlist = init_h5data(h5fn, whole_brain_shape);
+  // File h5file = init_h5data(h5fn, whole_brain_shape);
+  // init_h5data(h5fn, whole_brain_shape);
   hsize_t old_instance_n = 0;
   hsize_t old_contour_n = 0;
   hsize_t zmin = 0;
   torch::NoGradGuard no_grad;
-  torch::Tensor masks;
+  torch::Tensor first_mask;
   torch::Tensor pre_final_yx_flow;
   torch::Tensor pre_last_second;
   torch::Tensor pre_last_img;
@@ -171,46 +214,45 @@ int main(int argc, const char* argv[]) {
     0, 
     chunk_depth, 
     img_fns,
-    // mask_fns,
     get_tile_param, 
     preproc, 
-    nis_unet, 
-    // postproc, 
+    &nis_unet, 
     interpolater,
     grad_2d_to_3d,
     pre_final_yx_flow,
     pre_last_second,
     device
   );
-  torch::Tensor flow3d = gpu_outputs[0];
+  // torch::Tensor flow3d = gpu_outputs[0];
   pre_final_yx_flow = gpu_outputs[1];
   pre_last_second = gpu_outputs[2];
   torch::Tensor first_img = gpu_outputs[3];
   torch::Tensor last_img = gpu_outputs[4];
   torch::Tensor first_flow = gpu_outputs[5];
   torch::Tensor last_flow = gpu_outputs[6];
+  // torch::Tensor masks;
+  std::vector<torch::Tensor> last_first_masks;
   for (int64_t i = chunk_depth; i < img_fns.size(); i+=chunk_depth) {
     /*
     Follow the 3D flow to obtain NIS (CPU)
     */
-    torch::Tensor dP = flow3d.index({torch::indexing::Slice(torch::indexing::None, 3), "..."});
-    torch::Tensor cellprob = flow3d.index({3, "..."}); 
-    torch::Tensor cp_mask = cellprob > cellprob_threshold; 
-    if (cp_mask.any().item<bool>()) {
-      nis_obtainer = std::async(std::launch::async, nis_obtain, flow_3DtoSeed, dP, cp_mask);
-    } else {
-      print_with_time("No instance, probability map is all zero, continue");
-      // continue;
-    }
+    // torch::Tensor dP = flow3d.index({torch::indexing::Slice(torch::indexing::None, 3), "..."});
+    // torch::Tensor cellprob = flow3d.index({3, "..."}); 
+    // torch::Tensor cp_mask = cellprob > cellprob_threshold; 
+    // if (cp_mask.any().item<bool>()) {
+    nis_obtainer = std::async(std::launch::async, nis_obtain, flow_3DtoSeed, gpu_outputs[0], cellprob_threshold, old_instance_n, h5fn+"_zmin"+std::to_string(zmin));
+    // } else {
+    //   print_with_time("No instance, probability map is all zero, continue");
+    //   // continue;
+    // }
+    gpu_outputs.clear();
     gpu_outputs = gpu_process(
       i, 
       chunk_depth, 
       img_fns,
-      // mask_fns,
       get_tile_param, 
       preproc, 
-      nis_unet, 
-      // postproc, 
+      &nis_unet, 
       interpolater,
       grad_2d_to_3d,
       pre_final_yx_flow,
@@ -218,49 +260,54 @@ int main(int argc, const char* argv[]) {
       device
     );
     if (i > chunk_depth){
-      pre_last_mask = masks.index({-1, "..."});
+      pre_last_mask = last_first_masks[0];
     }
-    if (cp_mask.any().item<bool>()) {
-      nis_outputs = nis_obtainer.get();
-      /*
-      Save NIS results (IO) 
-      */
-      // Save the chunk to H5 database
-      print_with_time("Save NIS results to H5 database\n");
-      
-      // if (i > chunk_depth){
-      //   masks = nis_saver.get();
-      // }
-      hsize_t zmax = zmin + nis_outputs[0].size(0);
-      // nis_saver = std::async(std::launch::async, save_h5data, dsetlist, nis_outputs, old_instance_n, old_contour_n, zmin, zmax, whole_brain_shape);
-      masks = save_h5data(dsetlist, nis_outputs, old_instance_n, old_contour_n, zmin, zmax, whole_brain_shape);
-      zmin += nis_outputs[0].size(0);
-      old_instance_n += nis_outputs[2].size(0);
-      old_contour_n += nis_outputs[1].size(0);
-    }
+    // if (cp_mask.any().item<bool>()) {
+    nis_outputs = nis_obtainer.get();
+    /*
+    Save NIS results (IO) 
+    */
+    // Save the chunk to H5 database
+    // print_with_time("Save NIS results to H5 database\n");
+    
+    // if (i > chunk_depth){
+    //   masks = nis_saver.get();
+    // }
+    hsize_t zmax = zmin + nis_outputs[0].size(0);
+    print_with_time("zmin: ");
+    std::cout<<zmin<<", zmax: "<<zmax<<"\n";
+    print_with_time("whole_brain_shape: ");
+    std::cout<<whole_brain_shape<<"\n";
+    // nis_saver = std::async(std::launch::async, save_h5data, dsetlist, nis_outputs, old_instance_n, old_contour_n, zmin, zmax, whole_brain_shape);
+    last_first_masks = save_h5data(h5fn, nis_outputs, old_instance_n, old_contour_n, zmin, zmax, whole_brain_shape);
+    first_mask = last_first_masks[1];
+    zmin += nis_outputs[0].size(0);
+    old_instance_n += nis_outputs[2].size(0);
+    old_contour_n += nis_outputs[1].size(0);
+    nis_outputs.clear();
+    // }
     /*
     Run GNN to stitch the gap (GPU) 
     */
     if (i > chunk_depth){
-      // Stitch the gap between two chunks
-      print_with_time("Stitch the gap between two chunks\n");
-      torch::Tensor tgt_img = pre_last_img;
-      torch::Tensor tgt_mask = pre_last_mask;
-      torch::Tensor tgt_flow = pre_last_flow;
-      torch::Tensor src_img = first_img;
-      torch::Tensor src_mask = masks.index({0, "..."});
-      torch::Tensor src_flow = first_flow;
-      torch::Tensor remap = gnn_stitch_gap(gnn_message_passing, gnn_classifier, tgt_img, tgt_mask, tgt_flow, src_img, src_mask, src_flow, device);
-      remap_all.push_back(remap);
-      auto bytes = torch::pickle_save(torch::cat(remap_all, -1)); //this is actually a std::vector of char
-      std::ofstream fout(remapfn, std::ios::out | std::ios::binary);
-      fout.write(bytes.data(), bytes.size());
-      fout.close();
+      remap_all = stitch_process(
+        remap_all,
+        &gnn_message_passing, 
+        &gnn_classifier, 
+        pre_last_img,
+        pre_last_mask,
+        pre_last_flow,
+        first_img,
+        first_mask,
+        first_flow,
+        remapfn,
+        device
+      );
     }
 
     pre_last_img = last_img;
     pre_last_flow = last_flow;
-    flow3d = gpu_outputs[0];
+    // flow3d = gpu_outputs[0];
     pre_final_yx_flow = gpu_outputs[1];
     pre_last_second = gpu_outputs[2];
     first_img = gpu_outputs[3];
@@ -271,22 +318,23 @@ int main(int argc, const char* argv[]) {
   /*
   Follow the 3D flow to obtain NIS (CPU)
   */
-  torch::Tensor dP = flow3d.index({torch::indexing::Slice(torch::indexing::None, 3), "..."});
-  torch::Tensor cellprob = flow3d.index({3, "..."}); 
-  torch::Tensor cp_mask = cellprob > cellprob_threshold; 
-  if (cp_mask.any().item<bool>()) {
-    nis_obtainer = std::async(std::launch::async, nis_obtain, flow_3DtoSeed, dP, cp_mask);
-    nis_outputs = nis_obtainer.get();
-    /*
-    Save NIS results (IO) 
-    */
-    // Save the chunk to H5 database
-    print_with_time("Save NIS results to H5 database\n");
-    hsize_t zmax = zmin + nis_outputs[0].size(0);
-    masks = save_h5data(dsetlist, nis_outputs, old_instance_n, old_contour_n, zmin, zmax, whole_brain_shape);
-  } else {
-    print_with_time("No instance, probability map is all zero, continue");
-    // continue;
-  }
+  // torch::Tensor dP = flow3d.index({torch::indexing::Slice(torch::indexing::None, 3), "..."});
+  // torch::Tensor cellprob = flow3d.index({3, "..."}); 
+  // torch::Tensor cp_mask = cellprob > cellprob_threshold; 
+  // if (cp_mask.any().item<bool>()) {
+  // nis_obtainer = std::async(std::launch::async, nis_obtain, flow_3DtoSeed, dP, cp_mask);
+  nis_obtainer = std::async(std::launch::async, nis_obtain, flow_3DtoSeed, gpu_outputs[0], cellprob_threshold, old_instance_n, h5fn+"_zmin"+std::to_string(zmin));
+  nis_outputs = nis_obtainer.get();
+  /*
+  Save NIS results (IO) 
+  */
+  // Save the chunk to H5 database
+  // print_with_time("Save NIS results to H5 database\n");
+  hsize_t zmax = zmin + nis_outputs[0].size(0);
+  last_first_masks = save_h5data(h5fn, nis_outputs, old_instance_n, old_contour_n, zmin, zmax, whole_brain_shape);
+  // } else {
+  //   print_with_time("No instance, probability map is all zero, continue");
+  //   // continue;
+  // }
   std::cout << "ok\n";
 }

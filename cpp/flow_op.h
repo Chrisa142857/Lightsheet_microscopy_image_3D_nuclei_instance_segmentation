@@ -6,7 +6,7 @@
 torch::Tensor flow_2Dto3D(
     torch::Tensor flow_2d, 
     torch::Tensor pre_last_second, 
-    torch::jit::script::Module sim_grad_z,
+    torch::jit::script::Module* sim_grad_z,
     std::string device,
     bool skip_first
     );
@@ -22,5 +22,6 @@ std::vector<torch::Tensor> flow_3DtoNIS(
     torch::jit::script::Module flow_3DtoSeed,
     torch::Tensor p, 
     torch::Tensor iscell, 
+    int64_t ilabel,
     int64_t rpad
     );
