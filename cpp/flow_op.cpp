@@ -2,34 +2,43 @@
 
 
 torch::Tensor flow_2Dto3D(
-    torch::Tensor flow_2d, 
+    torch::Tensor flow_2d,  // [3 x Z x Y x X]
     torch::Tensor pre_last_second, 
     torch::jit::script::Module* sim_grad_z,
     std::string device,
     bool skip_first
     ) {
     sim_grad_z->to(device);
-    std::vector<torch::Tensor> grad3d;
+    // std::vector<torch::Tensor> grad3d;
+    flow_2d = torch::cat({torch::zeros_like(flow_2d[0]).unsqueeze(0), flow_2d}); // [4 x Z x Y x X]
 
     for (int64_t i = 0; i < flow_2d.size(1) - 1; ++i) {
-        torch::Tensor yx_flow = flow_2d.index({torch::indexing::Slice(0, 2), i});
-        torch::Tensor cellprob = flow_2d.index({2, i});
-        torch::Tensor next_yx_flow = flow_2d.index({torch::indexing::Slice(0, 2), i + 1});
+        // torch::Tensor yx_flow = flow_2d.index({torch::indexing::Slice(0, 2), i});
+        // torch::Tensor cellprob = flow_2d.index({3, i});
+        // torch::Tensor next_yx_flow = flow_2d.index({torch::indexing::Slice(1, 3), i + 1});
         torch::Tensor pre_yx_flow;
 
         if (i > 0) {
-            pre_yx_flow = flow_2d.index({torch::indexing::Slice(0, 2), i - 1});
+            pre_yx_flow = flow_2d.index({torch::indexing::Slice(1, 3), i - 1});
         } else {
             pre_yx_flow = pre_last_second;
         }
         if (i == 0 & skip_first) {continue;}
-        std::vector<torch::jit::IValue> inputs({yx_flow.to(device), cellprob.to(device), pre_yx_flow.to(device), next_yx_flow.to(device)});
-        torch::Tensor dP = sim_grad_z->forward(inputs).toTensor().cpu();
-        grad3d.push_back(dP);
+        // std::vector<torch::jit::IValue> inputs({yx_flow.to(device), cellprob.to(device), pre_yx_flow.to(device), next_yx_flow.to(device)});
+        std::vector<torch::jit::IValue> inputs({flow_2d.index({3, i}).to(device), pre_yx_flow.to(device), flow_2d.index({torch::indexing::Slice(1, 3), i + 1}).to(device)});
+        // torch::Tensor dP = sim_grad_z->forward(inputs).toTensor().cpu();
+        // grad3d.push_back(dP);
+        flow_2d.index_put_({0, i}, sim_grad_z->forward(inputs).toTensor().cpu());
     }
+    if (skip_first){
+        flow_2d = flow_2d.slice(1, 1, -1); // [4 x Z-2 x Y x X]
+    } else {
+        flow_2d = flow_2d.slice(1, 0, -1); // [4 x Z-1 x Y x X]
+    }
+    return flow_2d;
 
-    torch::Tensor output = torch::stack(grad3d, 1);
-    return output;
+    // torch::Tensor output = torch::stack(grad3d, 1);
+    // return output;
 }
 
 torch::Tensor index_flow(
