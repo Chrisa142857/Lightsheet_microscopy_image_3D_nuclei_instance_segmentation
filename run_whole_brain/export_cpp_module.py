@@ -368,22 +368,77 @@ def interpolate_wrap(flow_2d):
 
 def export_sim_gradz():
     device='cuda:1'
-    yx_flow = torch.randn(2, 5000, 5000).to(device)
+    # yx_flow = torch.randn(2, 5000, 5000).to(device)
     cellprob = torch.randn(5000, 5000).to(device)
     pre_yx_flow = torch.randn(2, 5000, 5000).to(device)
     next_yx_flow = torch.randn(2, 5000, 5000).to(device)
     # sim_grad_z(yx_flow, cellprob, pre_yx_flow, next_yx_flow)
-    args = (yx_flow, cellprob, pre_yx_flow, next_yx_flow)
+    args = (cellprob, pre_yx_flow, next_yx_flow)
     # grad_2d_to_3d(args)
-    traced_script_module = torch.jit.trace(sim_grad_z, args)
-    # device = device.replace(':', '')
-    traced_script_module.save(f'downloads/resource/grad_2Dto3D_{device}.pt')
+    m = GradZSimulater(device)
+    m.eval()
+    m.to(device)
+    with torch.no_grad():
+        traced_script_module = torch.jit.trace(m, args)
+        traced_script_module.save(f'downloads/resource/grad_2Dto3D_{device}.pt')
 
-def sim_grad_z(yx_flow, cellprob, pre_yx_flow, next_yx_flow):
+    # traced_script_module = torch.jit.trace(sim_grad_z, args)
+    # device = device.replace(':', '')
+    # traced_script_module.save(f'downloads/resource/grad_2Dto3D_{device}.pt')
+
+from kornia.core.check import KORNIA_CHECK_IS_TENSOR, KORNIA_CHECK_SHAPE
+from kornia.filters.kernels import _unpack_2d_ks, get_binary_kernel2d
+def _compute_zero_padding(kernel_size):
+    r"""Utility function that computes zero padding tuple."""
+    ky, kx = _unpack_2d_ks(kernel_size)
+    return (ky - 1) // 2, (kx - 1) // 2
+
+class MedianBlur(nn.Module):
+    def __init__(self, kernel_size, device) -> None:
+        super().__init__()
+        self.kernel = get_binary_kernel2d(kernel_size, device=device)
+        self.padding = _compute_zero_padding(kernel_size)
+
+    def forward(self, input):
+        KORNIA_CHECK_IS_TENSOR(input)
+        KORNIA_CHECK_SHAPE(input, ['B', 'C', 'H', 'W'])
+        b, c, h, w = input.shape
+        # map the local window to single vector
+        features = torch.nn.functional.conv2d(input.reshape(b * c, 1, h, w), self.kernel, padding=self.padding, stride=1)
+        features = features.view(b, c, -1, h, w)  # BxCx(K_h * K_w)xHxW
+
+        # compute the median along the feature axis
+        return features.median(dim=2)[0]
+
+class GradZSimulater(nn.Module):
+    def __init__(self, device, kernel_size = 3, stagen = 7) -> None:
+        super().__init__()
+        self.filter = MedianBlur(kernel_size, device)
+        self.stagen = stagen
+    def forward(self, cellprob, pre_yx_flow, next_yx_flow):
+        inside = (cellprob.unsqueeze(0).unsqueeze(0) > 0)#.to(device)
+        pre = ((pre_yx_flow**2).sum(0)**0.5).unsqueeze(0).unsqueeze(0)
+        next = ((next_yx_flow**2).sum(0)**0.5).unsqueeze(0).unsqueeze(0)
+        grad_Z = next - pre
+        for _ in range(self.stagen):
+            pre_nextstage = self.filter(pre)
+            next_nextstage = self.filter(next)
+            grad_Z = grad_Z + (next - pre_nextstage)
+            grad_Z = grad_Z + (next_nextstage - pre)
+            pre = pre_nextstage
+            next = next_nextstage
+        grad_Z = grad_Z / (1 + self.stagen*2)
+        grad_Z = grad_Z * inside
+        grad_Z = grad_Z.squeeze()#.cpu()
+        # dP = torch.stack((grad_Z, yx_flow[0], yx_flow[1], cellprob),
+        #             dim=0) # (4, dZ, dY, dX))
+        return grad_Z#.numpy()  
+
+def sim_grad_z(cellprob, pre_yx_flow, next_yx_flow):
     stagen = 7
     filter_size = 3
     filter = median_blur
-    grad_Z = torch.zeros_like(cellprob)
+    # grad_Z = torch.zeros_like(cellprob)
     # print(datetime.now(), "Do median filter pyramid for flow map %d" % i)
     # pre_yx_flow = pre_yx_flow.to(device)
     # next_yx_flow = next_yx_flow.to(device)
@@ -401,9 +456,9 @@ def sim_grad_z(yx_flow, cellprob, pre_yx_flow, next_yx_flow):
     grad_Z = grad_Z / (1 + stagen*2)
     grad_Z = grad_Z * inside
     grad_Z = grad_Z.squeeze()#.cpu()
-    dP = torch.stack((grad_Z, yx_flow[0], yx_flow[1], cellprob),
-                dim=0) # (4, dZ, dY, dX))
-    return dP#.numpy()
+    # dP = torch.stack((grad_Z, yx_flow[0], yx_flow[1], cellprob),
+    #             dim=0) # (4, dZ, dY, dX))
+    return grad_Z#.numpy()
 
 
 
@@ -690,14 +745,13 @@ def fg_indexer(fg,zid,yid,xid):
 
 
 if __name__ == '__main__':
-    export_gnn()
+    # export_gnn()
     # export_init_flow3Dindex()
     # export_index_flow3D()
     # export_flow3D2seed()
     # export_fg_indexer()
     # export_interpolate()
-    # export_sim_gradz()
-    # export_grad_2Dto3D(device)
+    export_sim_gradz()
     # export_nis_model(device)
     # export_get_model_param()
     # export_preproc_img(device)

@@ -1,5 +1,5 @@
 #include <torch/script.h> // One-stop header.
-// #include <filesystem>
+#include <torch/nn/functional.h>
 #include <future>
 
 // #include <iostream>
@@ -54,12 +54,13 @@ std::vector<torch::Tensor> gpu_process(
   torch::jit::script::Module get_tile_param, 
   torch::jit::script::Module preproc, 
   torch::jit::script::Module* nis_unet, 
-  torch::jit::script::Module interpolater,
+  // torch::jit::script::Module interpolater,
   torch::jit::script::Module grad_2d_to_3d,
   torch::Tensor pre_final_yx_flow,
   torch::Tensor pre_last_second,
   std::string device
 ) {
+  namespace F = torch::nn::functional;
   print_with_time("Chunk has slice "+std::to_string(i)+"~"+std::to_string(i+chunk_depth)+"\n");
   std::vector<std::string> img_onechunk;
   // std::vector<std::string> mask_onechunk;
@@ -87,8 +88,10 @@ std::vector<torch::Tensor> gpu_process(
     input_resolution = (4, .75, .75)
   */
   flow2d = flow2d.permute({3, 0, 1 ,2});
-  std::vector<torch::jit::IValue> inter_inputs({flow2d});
-  flow2d = interpolater(inter_inputs).toTensor();
+  flow2d = F::interpolate(flow2d.unsqueeze(0),
+    F::InterpolateFuncOptions().scale_factor(std::vector<double>({4/2.5, 1, 1})).mode(torch::kNearestExact).align_corners(false).recompute_scale_factor(false)).squeeze();
+  // std::vector<torch::jit::IValue> inter_inputs({flow2d});
+  // flow2d = interpolater(inter_inputs).toTensor();
   /*
   2D flow to 3D flow (GPU)
   */
@@ -155,7 +158,7 @@ int main(int argc, const char* argv[]) {
   torch::jit::script::Module nis_unet;
   // torch::jit::script::Module postproc;
   torch::jit::script::Module grad_2d_to_3d;
-  torch::jit::script::Module interpolater;
+  // torch::jit::script::Module interpolater;
   torch::jit::script::Module gnn_message_passing;
   torch::jit::script::Module gnn_classifier;
   torch::jit::script::Module flow_3DtoSeed;
@@ -163,7 +166,7 @@ int main(int argc, const char* argv[]) {
   preproc = torch::jit::load("/ram/USERS/ziquanw/Lightsheet_microscopy_image_3D_nuclei_instance_segmentation/downloads/resource/preproc_img1xLyxLx_"+std::string(argv[3])+".pt");
   nis_unet = torch::jit::load("/ram/USERS/ziquanw/Lightsheet_microscopy_image_3D_nuclei_instance_segmentation/downloads/resource/nis_unet_cpu.pt");
   grad_2d_to_3d = torch::jit::load("/ram/USERS/ziquanw/Lightsheet_microscopy_image_3D_nuclei_instance_segmentation/downloads/resource/grad_2Dto3D_"+std::string(argv[3])+".pt");
-  interpolater = torch::jit::load("/ram/USERS/ziquanw/Lightsheet_microscopy_image_3D_nuclei_instance_segmentation/downloads/resource/interpolate_ratio_1.6x1x1.pt");
+  // interpolater = torch::jit::load("/ram/USERS/ziquanw/Lightsheet_microscopy_image_3D_nuclei_instance_segmentation/downloads/resource/interpolate_ratio_1.6x1x1.pt");
   gnn_message_passing = torch::jit::load("/ram/USERS/ziquanw/Lightsheet_microscopy_image_3D_nuclei_instance_segmentation/downloads/resource/gnn_message_passing_"+std::string(argv[3])+".pt");
   gnn_classifier = torch::jit::load("/ram/USERS/ziquanw/Lightsheet_microscopy_image_3D_nuclei_instance_segmentation/downloads/resource/gnn_classifier_"+std::string(argv[3])+".pt");
   flow_3DtoSeed = torch::jit::load("/ram/USERS/ziquanw/Lightsheet_microscopy_image_3D_nuclei_instance_segmentation/downloads/resource/flow_3DtoSeed.pt");
@@ -217,7 +220,7 @@ int main(int argc, const char* argv[]) {
     get_tile_param, 
     preproc, 
     &nis_unet, 
-    interpolater,
+    // interpolater,
     grad_2d_to_3d,
     pre_final_yx_flow,
     pre_last_second,
@@ -253,7 +256,7 @@ int main(int argc, const char* argv[]) {
       get_tile_param, 
       preproc, 
       &nis_unet, 
-      interpolater,
+      // interpolater,
       grad_2d_to_3d,
       pre_final_yx_flow,
       pre_last_second,

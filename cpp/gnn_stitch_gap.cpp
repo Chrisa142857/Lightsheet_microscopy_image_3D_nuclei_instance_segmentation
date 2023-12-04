@@ -180,29 +180,53 @@ std::vector<torch::Tensor> get_feat(
     std::vector<torch::Tensor> hists;
     std::vector<torch::Tensor> feats;
     std::vector<torch::Tensor> bboxs;
+    std::vector<torch::Tensor> valid_oldid;
     for (int64_t i=0; i<oldid.size(0); i++){
         if (i % 10000 == 0){
             std::cout<<"...";
         }
         torch::Tensor m = mask==oldid[i];
+        torch::Tensor bbox = get_bbox(m);
+        int64_t cx = bbox[0].item<int64_t>();
+        int64_t cy = bbox[1].item<int64_t>();
+        int64_t bw = bbox[2].item<int64_t>();
+        int64_t bh = bbox[3].item<int64_t>();
+        if (bw < 1){continue;}
+        if (bh < 1){continue;}
+        valid_oldid.push_back(oldid[i]);
+        bboxs.push_back(bbox);
+        torch::Tensor img_patch = img.index({
+            torch::indexing::Slice(std::max(static_cast<int>(cx-bw-2), 0), cx+bw+2),
+            torch::indexing::Slice(std::max(static_cast<int>(cy-bh-2), 0), cy+bh+2)
+        });
+        torch::Tensor mask_patch = m.index({
+            torch::indexing::Slice(std::max(static_cast<int>(cx-bw-2), 0), cx+bw+2),
+            torch::indexing::Slice(std::max(static_cast<int>(cy-bh-2), 0), cy+bh+2)
+        });
+        torch::Tensor flow_patch = flow.index({
+            torch::indexing::Slice(),
+            torch::indexing::Slice(std::max(static_cast<int>(cx-bw-2), 0), cx+bw+2),
+            torch::indexing::Slice(std::max(static_cast<int>(cy-bh-2), 0), cy+bh+2)
+        });
+        // print_size(img_patch);
+        // std::cout<<mask_patch.any();
         torch::Tensor feat = F::interpolate(
-            img.index({m}).unsqueeze(0).unsqueeze(0), 
+            img_patch.index({mask_patch}).unsqueeze(0).unsqueeze(0), 
             F::InterpolateFuncOptions().size(std::vector<int64_t>({node_feat_size})).mode(torch::kLinear).align_corners(false)
         ).squeeze();
-        // std::cout<<"----image index\n";
-        torch::Tensor zflow = flow.index({-1, m}).mean();
-        // std::cout<<"----zflow index\n";
-        torch::Tensor xyflow = torch::stack({flow.index({0, m}), flow.index({1, m})});
+        // // std::cout<<"----image index\n";
+        // torch::Tensor zflow = flow_patch.index({-1, mask_patch}).mean();
+        // // std::cout<<"----zflow index\n";
+        // torch::Tensor xyflow = torch::stack({flow_patch.index({0, mask_patch}), flow_patch.index({1, mask_patch})});
         // std::cout<<"----xyflow index\n";
-        torch::Tensor hist = hist_flow_vector(xyflow);
-        zflows.push_back(zflow);
+        torch::Tensor hist = hist_flow_vector(torch::stack({flow_patch.index({0, mask_patch}), flow_patch.index({1, mask_patch})}));
+        zflows.push_back(flow_patch.index({-1, mask_patch}).mean());
         hists.push_back(hist);
         feats.push_back(feat);
-        bboxs.push_back(get_bbox(m));
     }
     std::vector<torch::Tensor> outputs;
     // **ID remap dict** [N]
-    outputs.push_back(oldid);
+    outputs.push_back(torch::stack(valid_oldid));
     // **Node feature** [200+9, N]
     outputs.push_back(torch::cat({torch::stack(feats), torch::stack(hists)}, -1));
     // **Edge feature** [N]
@@ -215,9 +239,9 @@ std::vector<torch::Tensor> get_feat(
 torch::Tensor get_bbox(torch::Tensor mask){
     std::vector<torch::Tensor> xy = torch::where(mask);
     torch::Tensor xmin = xy[0].min();
-    torch::Tensor xmax = xy[0].max();
+    torch::Tensor xmax = xy[0].max()+1;
     torch::Tensor ymin = xy[1].min();
-    torch::Tensor ymax = xy[1].max();
+    torch::Tensor ymax = xy[1].max()+1;
     torch::Tensor bbox = torch::stack({(xmax+xmin)/2, (ymax+ymin)/2, xmax-xmin, ymax-ymin});
     return bbox;
 }
