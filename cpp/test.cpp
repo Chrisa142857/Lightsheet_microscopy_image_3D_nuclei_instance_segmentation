@@ -174,7 +174,8 @@ int main(int argc, const char* argv[]) {
   // std::string brain_tag = "L73D766P4";
   std::string pair_tag(argv[1]);
   std::string brain_tag(argv[2]);
-  std::string img_dir = "/lichtman/Felix/Lightsheet/P4/"+pair_tag+"/output_"+brain_tag+"/stitched/";
+  std::string data_root(argv[4]);
+  std::string img_dir = "/"+data_root+"/Felix/Lightsheet/P4/"+pair_tag+"/output_"+brain_tag+"/stitched/";
   // std::string mask_dir = "/cajal/ACMUSERS/ziquanw/Lightsheet/roi_mask/"+pair_tag+"/"+brain_tag+"/";
   std::string h5fn = "/cajal/ACMUSERS/ziquanw/Lightsheet/results/P4/"+pair_tag+"/"+brain_tag+"/"+brain_tag+"_NIScpp_results";
   std::string remapfn = "/cajal/ACMUSERS/ziquanw/Lightsheet/results/P4/"+pair_tag+"/"+brain_tag+"/"+brain_tag+"_remap.zip";
