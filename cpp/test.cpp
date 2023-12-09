@@ -238,6 +238,7 @@ int main(int argc, const char* argv[]) {
   // torch::Tensor masks;
   std::vector<torch::Tensor> last_first_masks;
   bool pre_has_nis;
+  bool cur_has_nis;
   for (int64_t i = chunk_depth; i < img_fns.size(); i+=chunk_depth) {
     /*
     Follow the 3D flow to obtain NIS (CPU)
@@ -257,8 +258,11 @@ int main(int argc, const char* argv[]) {
       pre_last_second,
       device
     );
-    if (i > chunk_depth & pre_has_nis){
+    if (i > chunk_depth & last_first_masks.size() > 0){
       pre_last_mask = last_first_masks[0];
+      pre_has_nis = true;
+    } else {
+      pre_has_nis = false;
     }
     nis_outputs = nis_obtainer.get();
     /*
@@ -276,16 +280,17 @@ int main(int argc, const char* argv[]) {
       zmin += nis_outputs[0].size(0);
       old_instance_n += nis_outputs[2].size(0);
       old_contour_n += nis_outputs[1].size(0);
-      pre_has_nis = true;
+      cur_has_nis = true;
     } else {
-      pre_has_nis = false;
+      last_first_masks.clear();
+      cur_has_nis = false;
     }
     nis_outputs.clear();
     // }
     /*
     Run GNN to stitch the gap (GPU) 
     */
-    if (i > chunk_depth & pre_has_nis){
+    if (i > chunk_depth & pre_has_nis & cur_has_nis){
       remap_all = stitch_process(
         remap_all,
         &gnn_message_passing, 
