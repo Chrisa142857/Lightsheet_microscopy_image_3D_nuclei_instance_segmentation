@@ -243,6 +243,7 @@ int main(int argc, const char* argv[]) {
     /*
     Follow the 3D flow to obtain NIS (CPU)
     */
+    hsize_t zmax = zmin + gpu_outputs[0].size(1);
     nis_obtainer = std::async(std::launch::async, nis_obtain, flow_3DtoSeed, gpu_outputs[0], cellprob_threshold, old_instance_n, h5fn+"_zmin"+std::to_string(zmin));
     gpu_outputs.clear();
     gpu_outputs = gpu_process(
@@ -269,7 +270,6 @@ int main(int argc, const char* argv[]) {
     Get last and first slice of output
     */
     if (nis_outputs.size() > 1){
-      hsize_t zmax = zmin + nis_outputs[0].size(0);
       print_with_time("zmin: ");
       std::cout<<zmin<<", zmax: "<<zmax<<"\n";
       print_with_time("whole_brain_shape: ");
@@ -277,7 +277,6 @@ int main(int argc, const char* argv[]) {
       // nis_saver = std::async(std::launch::async, save_h5data, dsetlist, nis_outputs, old_instance_n, old_contour_n, zmin, zmax, whole_brain_shape);
       last_first_masks = save_h5data(h5fn, nis_outputs, old_instance_n, old_contour_n, zmin, zmax, whole_brain_shape);
       first_mask = last_first_masks[1];
-      zmin += nis_outputs[0].size(0);
       old_instance_n += nis_outputs[2].size(0);
       old_contour_n += nis_outputs[1].size(0);
       cur_has_nis = true;
@@ -315,6 +314,7 @@ int main(int argc, const char* argv[]) {
     last_img = gpu_outputs[4];
     first_flow = gpu_outputs[5];
     last_flow = gpu_outputs[6];
+    zmin = zmax;
   }
 
   nis_obtainer = std::async(std::launch::async, nis_obtain, flow_3DtoSeed, gpu_outputs[0], cellprob_threshold, old_instance_n, h5fn+"_zmin"+std::to_string(zmin));
