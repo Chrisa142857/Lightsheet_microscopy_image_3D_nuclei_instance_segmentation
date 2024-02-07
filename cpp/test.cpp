@@ -139,6 +139,7 @@ std::vector<torch::Tensor> stitch_process(
     torch::Tensor src_mask = first_mask;
     torch::Tensor src_flow = first_flow;
     torch::Tensor remap = gnn_stitch_gap(gnn_message_passing, gnn_classifier, tgt_img, tgt_mask, tgt_flow, src_img, src_mask, src_flow, device);
+    if (remap.size(0)==0) {return remap_all;}
     remap_all.push_back(remap);
     save_tensor(torch::cat(remap_all, -1), remapfn);
     return remap_all;

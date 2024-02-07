@@ -109,13 +109,18 @@ def mask_iou(one_mask, masks, axis=(1,2,3)):
         exit()
         
 def iou_2mask(masks1, masks2, is_3d=True):    
+    minz = max(masks1.shape[0],masks2.shape[0])
     device = masks1.device
     ## compute distance between every center of node of graph
     boxes1 = extract_bboxes_torch(masks1, is_3d=is_3d) # N x 4
     boxes2 = extract_bboxes_torch(masks2, is_3d=is_3d) # N x 4
     if is_3d:
         centers1 = boxes1[:, :3]# N x 3
+        if masks1.shape[0] < minz:
+            centers1[:, 0] = centers1[:, 0] / (masks1.shape[0]/minz)
         centers2 = boxes2[:, :3]# N x 3
+        if masks2.shape[0] < minz:
+            centers2[:, 0] = centers2[:, 0] / (masks2.shape[0]/minz)
         axis = (1,2,3)
     else:
         centers1 = boxes1[:, :2]# N x 2
