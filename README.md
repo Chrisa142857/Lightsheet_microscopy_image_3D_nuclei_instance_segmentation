@@ -21,7 +21,7 @@ Multiple whole brains of mouse in different grown stage. Each brain has ~1500x90
 
 ### Codes availability
  - [x] Train 2D Unet
- - [x] Executible to test a whole brain
+ - [x] Source code of the executible to test a whole brain
 
 ### Data availability
  - [ ] Train-val data
