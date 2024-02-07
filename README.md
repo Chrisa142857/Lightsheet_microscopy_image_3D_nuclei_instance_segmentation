@@ -14,7 +14,7 @@
  - Time cost ~= **12**hr/brain
 
 ### Data:
-Multiple whole brains of mouse in different grown stage. Each brain has ~1500x9000x9000 voxels, and 30,000,000~50,000,000 cells.
+Multiple whole brains of mouse in different grown stage. Each brain has ~1500x9000x9000 voxels, and about 30,000,000 to 50,000,000 cells.
 
 ### TODO: Interactive visualization of whole brain nuclei segmentation results
  - [ ] Github [page](http://lightsheet-nis.ziquanw.com/).
