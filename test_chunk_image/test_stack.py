@@ -16,23 +16,27 @@ def main_cellpose3D(_r, save_tag='Carolyn_P15'):
     print(save_tag, "cellpose3D")
     eval_device = 0
     tag = 'cellpose3D'
-    save_r = 'results_%s/%s' % (save_tag, tag)
+    save_r = '/ram/USERS/ziquanw/Lightsheet_microscopy_image_3D_nuclei_instance_segmentation/downloads/train_data/test_out_rescaled_n12'
+    # save_r = 'results_%s/%s' % (save_tag, tag)
     os.makedirs(save_r, exist_ok=True)
     # trained_model = 'cellpose/models/cellpose_residual_on_style_on_concatenation_off_train_2023_02_28_09_28_46.761192_epoch_41'
     # trained_model = 'cellpose/models/P4_models/cellpose_residual_on_style_on_concatenation_off_train_2023_04_10_21_02_12.036323_epoch_41'
     # trained_model = 'cellpose/models/P15_P4_models/cellpose_residual_on_style_on_concatenation_off_train_2023_05_15_12_23_32.710910_epoch_61'
     # trained_model = 'cellpose/models/P15_P4_models_rescaled/cellpose_residual_on_style_on_concatenation_off_train_2023_05_29_18_33_47.131380_epoch_61'
-    trained_model = 'cellpose/models/P15_P4_models_rescaled_nuclei/cellpose_residual_on_style_on_concatenation_off_train_2023_05_29_22_42_54.153497_epoch_21'
+    # trained_model = 'cellpose/models/P15_P4_models_rescaled_nuclei/cellpose_residual_on_style_on_concatenation_off_train_2023_05_29_22_42_54.153497_epoch_21'
+    trained_model = '../../downloads/train_data/data_P4_P15_rescaled-as-P15/train_n12/models/cellpose_residual_on_style_on_concatenation_off_train_n12_2024_01_22_18_19_24.791368_epoch_81'
     # model = models.CellposeModel(device=torch.device('cuda:%d' % int(sys.argv[3])), pretrained_model=trained_model)
     model = models.CellposeModel(device=torch.device('cuda:0'), pretrained_model=trained_model)
-    testlist = [f for f in os.listdir(_r) if f.endswith('.tif')]
-    with open('test_p%d_list.txt' % (4 if '4' in save_tag else 15), 'r') as f:
+    # testlist = [f for f in os.listdir(_r) if f.endswith('.tif')]
+    # with open('test_p%d_list.txt' % (4 if '4' in save_tag else 15), 'r') as f:
+    with open('../../downloads/stack_data/test_list.txt', 'r') as f:
         testlist = f.read().split('\n')[:-1]
-    testlist = [f.split('/')[-1].replace('_masks', '') for f in testlist]
+    # testlist = [f.split('/')[-1].replace('_masks', '') for f in testlist]
     precs, recs, f1s = [], [], []
     all_time = 0
     for f in testlist:
-        img = np.array(imageio.v2.mimread(os.path.join(_r, f)))
+        # img = np.array(imageio.v2.mimread(os.path.join(_r, f)))
+        img = np.array(imageio.v2.mimread(f))
         if 'rescaled-as-P15' not in _r:
             gtn = f.replace('.tif', '- completed.nii') if 'Felix' in save_tag else f.replace('.tif', '.nii')
             gt = nib.load(os.path.join(_r.replace('images', 'masks'), gtn)).get_fdata()
@@ -43,17 +47,19 @@ def main_cellpose3D(_r, save_tag='Carolyn_P15'):
         masks, _, _ = model.eval(img, diameter=None, channels=[0,0], do_3D=True, stitch_threshold=0)
         all_time += time.time()-otime
         tif.imwrite('%s/%s' % (save_r, f), masks) # cellpose
+        continue
         prec, rec, f1, _, _, _ = eval_f1(torch.from_numpy(mask2mask_list(masks)).to('cuda:%d'%eval_device), torch.from_numpy(mask2mask_list(gt)).to('cuda:%d'%eval_device))
         precs.append(prec)
         recs.append(rec)
         f1s.append(f1)
 
-    print("F1: %.6f, Prec: %.6f, Rec: %.6f, time: %.6f" % (np.mean(f1s), np.mean(precs), np.mean(recs), all_time/len(testlist)))
+    # print("F1: %.6f, Prec: %.6f, Rec: %.6f, time: %.6f" % (np.mean(f1s), np.mean(precs), np.mean(recs), all_time/len(testlist)))
 
 def main_ours(_r, gt_r=None, save_tag='Carolyn_P15'):
-    print(save_tag, "cellpose2D_simZ")
-    if gt_r is None: gt_r = _r
+    # print(save_tag, "cellpose2D_simZ")
+    # if gt_r is None: gt_r = _r
     eval_device = 0
+    save_r = '/ram/USERS/ziquanw/Lightsheet_microscopy_image_3D_nuclei_instance_segmentation/downloads/train_data/test_out_rescaled_n8'
     # tag = 'cellpose2D_cosine_sim'
     # save_r = 'results_%s/%s' % (save_tag, tag)
     # os.makedirs(save_r, exist_ok=True)
@@ -63,23 +69,30 @@ def main_ours(_r, gt_r=None, save_tag='Carolyn_P15'):
     #     trained_model = 'cellpose/models/P4_models/cellpose_residual_on_style_on_concatenation_off_train_2023_04_10_21_02_12.036323_epoch_41'
     # trained_model = 'cellpose/models/P15_P4_models/cellpose_residual_on_style_on_concatenation_off_train_2023_05_15_12_23_32.710910_epoch_61'
     # trained_model = 'cellpose/models/P15_P4_models_rescaled/cellpose_residual_on_style_on_concatenation_off_train_2023_05_29_18_33_47.131380_epoch_61'
-    trained_model = 'downloads/train_data/data_P4_P15_rescaled-as-P15/train/models/cellpose_residual_on_style_on_concatenation_off_train_2023_05_29_22_42_54.153497_epoch_21'
+    # trained_model = '../downloads/train_data/data_P4_P15_rescaled-as-P15/train_n12/models/cellpose_residual_on_style_on_concatenation_off_train_2023_05_29_18_33_47.131380_epoch_81'
+    trained_model = '../downloads/train_data/data_P4_P15_rescaled-as-P15/train_n8/models/cellpose_residual_on_style_on_concatenation_off_train_2023_05_29_18_33_47.131380_epoch_1'
+    # trained_model = 'downloads/train_data/data_P4_P15_rescaled-as-P15/train/models/cellpose_residual_on_style_on_concatenation_off_train_2023_05_29_22_42_54.153497_epoch_21'
 
     # model = models.CellposeModel(device=torch.device('cuda:%d' % int(sys.argv[3])), pretrained_model=trained_model)
     model = models.CellposeModel(device=torch.device('cuda:0'), pretrained_model=trained_model)
     # testlist = [f for f in os.listdir(_r) if f.endswith('.tif')]
-    with open('downloads/stack_data/test_p%d_list.txt' % (4 if '4' in save_tag else 15), 'r') as f:
+    # with open('downloads/stack_data/test_p%d_list.txt' % (4 if '4' in save_tag else 15), 'r') as f:
+    #     testlist = f.read().split('\n')[:-1]
+    
+    with open('../downloads/stack_data/test_list.txt', 'r') as f:
         testlist = f.read().split('\n')[:-1]
-    testlist = [f.split('/')[-1].replace('_masks', '') for f in testlist]
+    # testlist = [f.split('/')[-1].replace('_masks', '') for f in testlist]
     # testlist = ['FelixP4_L91D814P6_stitched_x6700y5000z0900.tif']
     precs, recs, f1s = [], [], []
     all_time = 0
     for f in testlist:
-        img = np.array(imageio.v2.mimread(os.path.join(_r, f)))
+        # img = np.array(imageio.v2.mimread(os.path.join(_r, f)))
+        img = np.array(imageio.v2.mimread(f))
         otime = time.time()
         masks, _, _ = model.eval(img, diameter=None, channels=[0,0], do_3D=True, stitch_threshold=0, do_sim_Z=True)
         all_time += time.time()-otime
-        # tif.imwrite('%s/%s' % (save_r, f), masks) # cellpose
+        tif.imwrite('%s/%s' % (save_r, f.split('/')[-1]), masks) # cellpose
+        continue
         # exit()
         if 'rescaled-as-P15' not in gt_r:
             gtn = f.replace('.tif', '- completed.nii') if 'P4' in save_tag else f.replace('.tif', '.nii')

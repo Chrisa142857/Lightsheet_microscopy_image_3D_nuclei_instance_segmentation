@@ -19,6 +19,10 @@ torch::Tensor gnn_stitch_gap(
     gnn_message_passing->to(device);
     print_with_time("Start build graph\n");
     std::vector<torch::Tensor> graph = build_graph(img1, mask1, flow1, img2, mask2, flow2, device);
+    if (graph.size() == 0) {
+        print_with_time("No valid NIS");
+        return torch::zeros({0});
+    }
     print_with_time("Done, build graph: node ");
     print_size(graph[0]);
     std::vector<torch::jit::IValue> gnn_input;
@@ -77,20 +81,28 @@ std::vector<torch::Tensor> build_graph(
     torch::Tensor flow2,
     std::string device
 ) {
+    // graph = {x, edge_id, edge_attr, node0_oldid2new, node1_oldid2new, topn_id}
+    std::vector<torch::Tensor> graph;
     // feat = {id_old2new, node_feat, edge_feat, bbox}
     print_with_time("Feature 1 gather");
     std::vector<torch::Tensor> feat1 = get_feat(img1.to(device), mask1.to(device), flow1.to(device));
+    if (feat1.size() == 0) {
+        print_with_time("No valid feature 1\n");
+        return graph;
+    }
     std::cout<<"Done\n";
     print_with_time("Feature 2 gather");
     std::vector<torch::Tensor> feat2 = get_feat(img2.to(device), mask2.to(device), flow2.to(device));
+    if (feat2.size() == 0) {
+        print_with_time("No valid feature 2\n");
+        return graph;
+    }
     std::cout<<"Done\n";
     // edges = {edge_id, edge_attr, topn_id}
     print_with_time("Edge gather");
     // std::string dev_edge = "cpu";
     std::vector<torch::Tensor> edges = get_edge(feat1[3], feat2[3], feat1[2], feat2[2], device);
     std::cout<<"Done\n";
-    // graph = {x, edge_id, edge_attr, node0_oldid2new, node1_oldid2new, topn_id}
-    std::vector<torch::Tensor> graph;
     graph.push_back(torch::cat({feat1[1], feat2[1]}).to(torch::kFloat).to(device));
     graph.push_back(edges[0].to(device));
     graph.push_back(edges[1].to(torch::kFloat).to(device));
@@ -225,14 +237,16 @@ std::vector<torch::Tensor> get_feat(
         feats.push_back(feat);
     }
     std::vector<torch::Tensor> outputs;
-    // **ID remap dict** [N]
-    outputs.push_back(torch::stack(valid_oldid));
-    // **Node feature** [200+9, N]
-    outputs.push_back(torch::cat({torch::stack(feats), torch::stack(hists)}, -1));
-    // **Edge feature** [N]
-    outputs.push_back(torch::stack(zflows));
-    // **Bbox** for building edge 
-    outputs.push_back(torch::stack(bboxs));
+    if(valid_oldid.size() > 0) {
+        // **ID remap dict** [N]
+        outputs.push_back(torch::stack(valid_oldid));
+        // **Node feature** [200+9, N]
+        outputs.push_back(torch::cat({torch::stack(feats), torch::stack(hists)}, -1));
+        // **Edge feature** [N]
+        outputs.push_back(torch::stack(zflows));
+        // **Bbox** for building edge 
+        outputs.push_back(torch::stack(bboxs));
+    }
     return outputs;
 }
 
