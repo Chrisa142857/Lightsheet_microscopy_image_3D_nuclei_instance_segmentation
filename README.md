@@ -6,22 +6,26 @@
 ### Motivations:
  - None has developed a nuclei instance segmentation for whole brain.
  - Lightsheet microscopy 3D image has anisotropic resolution.
- - Resolution is isotropic in X-Y plane.
-
-### Data:
-Multiple whole brains of mouse in different grown stage. Each brain has ~1500x9000x9000 voxels.
-
-### Interactive visualization of whole brain nuclei segmentation results
-Go to this [page](http://lightsheet-nis.ziquanw.com/).
+ - Resolution is isotropic in X-Y plane, where human annotating nuclei, then tracking Z stack.
 
 ### Performance and time cost:
  - Recall > 90% 
  - Precision > 90%
- - Time cost < 24 hr/brain
+ - Time cost ~= **12**hr/brain
+
+### Data:
+Multiple whole brains of mouse in different grown stage. Each brain has ~1500x9000x9000 voxels, and 30,000,000~50,000,000 cells.
+
+### TODO: Interactive visualization of whole brain nuclei segmentation results
+ - [ ] Github [page](http://lightsheet-nis.ziquanw.com/).
 
 ### Codes availability
  - [x] Train 2D Unet
- - [x] Run whole brain
+ - [x] Executible to test a whole brain
+
+### Data availability
+ - [ ] Train-val data
+ - [ ] Test whole brain
 
 ### Usage
  - Follow `README` under directories.
