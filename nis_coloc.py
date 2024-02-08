@@ -164,10 +164,10 @@ imgzs, imgi = imgzs.tolist(), imgi.tolist()
 img_path_list = [[[f"{img_r}/{brain_tag}_{imgz:04d}_{img_tags[i]}{img_names[i]}_stitched.tif"] for imgz in imgzs] for i in range(len(img_tags))]
 img_stacks = [[] for i in range(len(img_tags))]
 for i in range(len(img_tags)):
-    with Pool(60) as p:
+    with Pool(20) as p:
         img_stacks[i] = list(p.starmap(imread, tqdm(img_path_list[i], desc=f"{datetime.now()} Load raw {img_tags[i]}image")))
 for i in range(len(img_tags)):
-    for zi in trange(len(zstack_uni), desc=f"{datetime.now()} norm NIS intensity"):
+    for zi in trange(len(zstack_uni), desc=f"{datetime.now()} norm NIS {img_tags[i]}intensity"):
         z = zstack_uni[zi]
         zloc = torch.where(zstack==z)[0]
         fg = torch.where(data[zloc, :, i] > 0)
