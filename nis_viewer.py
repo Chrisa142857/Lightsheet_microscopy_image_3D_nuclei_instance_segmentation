@@ -116,7 +116,7 @@ def mask2mesh():
     #     nis_stack.append(torch.load(sp[0]).cpu())
     # depth_list = torch.LongTensor([nis.shape[0] for nis in nis_stack]).cumsum(0)[:-1]
     print('Done, loaded all NIS mask')
-    nis_stack = torch.cat(nis_stack).cpu()
+    nis_stack = torch.cat(nis_stack)#.cpu()
     # group_num = 3
     # depths = []
     # for i in range(len(depth_list)):
