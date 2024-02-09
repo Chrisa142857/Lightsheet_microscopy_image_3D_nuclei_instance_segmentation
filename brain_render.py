@@ -162,7 +162,7 @@ def main(pair_tag, brain_tag, img_tags=[]):
     seg_paths, sortks = listdir_sorted(seg_root, "NIScpp", ftail="seg.zip", sortkid=3)
     ## For visualization purpose
     dratio = [s/d for s, d in zip(seg_res, downsample_res)]
-    dratio = [r for r in dratio]
+    dratio = [r*2 for r in dratio]
     sshape = torch.load(seg_paths[-1]).shape
     sshape = list(sshape)
     sshape[0] = sshape[0] + sortks[-1]
@@ -175,28 +175,33 @@ def main(pair_tag, brain_tag, img_tags=[]):
     total_vol = torch.load(f"{stat_root}/{brain_tag}_nis_volume.zip", map_location='cpu')
     print(datetime.now(), f"Loaded {total_vol.shape} NIS")
     density_total, vol_avg = downsample(total_center, total_vol, dratio, dshape, device, skip_vol=True)
-    # print(datetime.now(), f"Saving total density {pair_tag} {brain_tag}, Max density {density_total.max()}")
-    # nib.save(nib.Nifti1Image(density_total.numpy().astype(np.float64), affine_m, header=new_header), f'{save_root}/NIS_density_{pair_tag}_{brain_tag}.nii')
+    print(datetime.now(), f"Saving total density {pair_tag} {brain_tag}, Max density {density_total.max()}")
+    nib.save(nib.Nifti1Image(density_total.numpy().astype(np.float64), affine_m, header=new_header), f'{save_root}/NIS_density_dr{dratio[0]}_topro_{pair_tag}_{brain_tag}.nii')
     # nib.save(nib.Nifti1Image(vol_avg.numpy().astype(np.float64), affine_m, header=new_header), f'{save_root}/NIS_volavg_{pair_tag}_{brain_tag}.nii')
-    intensity_label_dict = torch.load(f"{stat_root}/{brain_tag}_nis_coloc_label.zip", map_location='cpu')
-    label_des = {'pp_mask':1, 'pn_mask': 2, 'np_mask': 3, 'nn_mask': 4}
-    print(len(intensity_label_dict['pp_mask']), total_center.shape)
-    total_center = total_center[:len(intensity_label_dict['pp_mask'])]
-    total_vol = total_vol[:len(intensity_label_dict['pp_mask'])]
-    intensity_label = torch.zeros(total_center.shape[0]).long()
-    for k in label_des:
-        intensity_label[intensity_label_dict[k][:len(intensity_label)]] = label_des[k] 
-    print(datetime.now(), f"intensity_label.bincount: {intensity_label.bincount()}")
-    density_c1, _ = downsample(total_center[intensity_label==2], total_vol[intensity_label==2], dratio, dshape, device, skip_vol=True)
-    density_c2, _ = downsample(total_center[intensity_label==3], total_vol[intensity_label==3], dratio, dshape, device, skip_vol=True)
+    intensity_label_dict = torch.load(f"{stat_root}/{brain_tag}_NIS_colocContrastCalib_label.zip", map_location='cpu')
+    # label_des = {'pn_mask':1, 'np_mask': 2, 'pp_mask': 3, 'nn_mask': 4}    
+    for k in intensity_label_dict:
+        density_k, vol_avg = downsample(total_center[intensity_label_dict[k]], total_vol[intensity_label_dict[k]], dratio, dshape, device, skip_vol=True)
+        nib.save(nib.Nifti1Image(density_k.numpy().astype(np.float64), affine_m, header=new_header), f'{save_root}/NIS_density_dr{dratio[0]}_{k}_{pair_tag}_{brain_tag}.nii')
+    
+    
+    # print(len(intensity_label_dict['pp_mask']), total_center.shape)
+    # total_center = total_center[:len(intensity_label_dict['pp_mask'])]
+    # total_vol = total_vol[:len(intensity_label_dict['pp_mask'])]
+    # intensity_label = torch.zeros(total_center.shape[0]).long()
     # for k in label_des:
-    #     density_c1, _ = downsample(total_center[intensity_label==label_des[k]], total_vol[intensity_label==label_des[k]], dratio, dshape, device, skip_vol=True)
-    #     print(datetime.now(), f"Saving C{label_des[k]}({k}) density {pair_tag} {brain_tag}, Max density {density_c1.max()}")
-    #     nib.save(nib.Nifti1Image(density_c1.numpy().astype(np.float64), affine_m, header=new_header), f'{save_root}/NIS_density_C{label_des[k]}({k})_{pair_tag}_{brain_tag}.nii')
-    density = torch.zeros_like(density_c1)
-    density[density_c1>density_c2] = 1
-    density[density_c1<density_c2] = 2
-    nib.save(nib.Nifti1Image(density.numpy().astype(np.float32), affine_m, header=new_header), f'{save_root}/NIS_density_C2vsC3_{pair_tag}_{brain_tag}.nii')
+    #     intensity_label[intensity_label_dict[k][:len(intensity_label)]] = label_des[k] 
+    # print(datetime.now(), f"intensity_label.bincount: {intensity_label.bincount()}")
+    # density_c1, _ = downsample(total_center[intensity_label==2], total_vol[intensity_label==2], dratio, dshape, device, skip_vol=True)
+    # density_c2, _ = downsample(total_center[intensity_label==3], total_vol[intensity_label==3], dratio, dshape, device, skip_vol=True)
+    # # for k in label_des:
+    # #     density_c1, _ = downsample(total_center[intensity_label==label_des[k]], total_vol[intensity_label==label_des[k]], dratio, dshape, device, skip_vol=True)
+    # #     print(datetime.now(), f"Saving C{label_des[k]}({k}) density {pair_tag} {brain_tag}, Max density {density_c1.max()}")
+    # #     nib.save(nib.Nifti1Image(density_c1.numpy().astype(np.float64), affine_m, header=new_header), f'{save_root}/NIS_density_C{label_des[k]}({k})_{pair_tag}_{brain_tag}.nii')
+    # density = torch.zeros_like(density_c1)
+    # density[density_c1>density_c2] = 1
+    # density[density_c1<density_c2] = 2
+    # nib.save(nib.Nifti1Image(density.numpy().astype(np.float32), affine_m, header=new_header), f'{save_root}/NIS_density_C2vsC3_{pair_tag}_{brain_tag}.nii')
     # coloc = plot_local_2channel(intensity_label, total_center, total_vol, 150, 2267, 2267, 500, device)
     # nib.save(nib.Nifti1Image(coloc.numpy().astype(np.float32), affine_m, header=new_header), f'{save_root}/NIS_density_C2C3loc_{pair_tag}_{brain_tag}.nii')
 
