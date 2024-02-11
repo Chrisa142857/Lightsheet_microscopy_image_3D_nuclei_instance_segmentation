@@ -2,15 +2,17 @@ import torch, os, re
 from math import e
 from datetime import datetime
 import matplotlib.pyplot as plt
-from multiprocessing import Pool
+from multiprocessing import Pool, set_start_method, get_context
 import nibabel as nib
 import numpy
 from run_whole_brain.utils import imread
 from brain_render import init_nib_header
 from tqdm import trange, tqdm
+from tqdm.contrib.concurrent import process_map
 import pandas as pd
 import seaborn as sns
 from PIL import Image
+# set_start_method("spawn")
 
 
 def main(pair_tag, brain_tag):
@@ -61,12 +63,49 @@ def main(pair_tag, brain_tag):
     zstack_uni = zstack.unique()
     imgzs, imgi = ((zstack_uni/(img_res[0]/seg_res[0])).long()+1).unique(return_inverse=True)
     imgzs, imgi = imgzs.tolist(), imgi.tolist()
-    img_path_list = [[[f"{img_r}/{brain_tag}_{imgz:04d}_{img_tags[i]}{img_names[i]}_stitched.tif"] for imgz in imgzs] for i in range(len(img_tags))]
-    img_stacks = [[] for i in range(len(img_tags))]
+    img_path_list = [[f"{img_r}/{brain_tag}_{imgz:04d}_{img_tags[i]}{img_names[i]}_stitched.tif" for imgz in imgzs] for i in range(len(img_tags))]
+    # img_stacks = [[] for i in range(len(img_tags))]
+    # save_imgs = [None for i in range(len(img_tags))]
+    # img_range = [[] for i in range(len(img_tags))]
     for i in range(len(img_tags)):
-        with Pool(60) as p:
-            img_stacks[i] = list(p.starmap(imread, tqdm(img_path_list[i], desc=f"{datetime.now()} Load raw {img_tags[i]}image")))
-    for i in range(len(img_tags)):
+        hist_fn = f'{stat_r}/{pair_tag}/{brain_tag}_{img_tags[i]}{img_names[i]}_hist.zip'
+        if os.path.exists(hist_fn):
+            hist_zip = torch.load(hist_fn)
+            hist = hist_zip['hist']
+            bin_ranges = hist_zip['bin_ranges']
+            img_stack = [None if imgi != tgt_z else load_img(img_path_list[i][imgi]) for imgi in range(len(img_path_list[i]))]
+        else:
+            # img_stack = []
+            # for path in tqdm(img_path_list[i], desc=f"{datetime.now()} Load raw {img_tags[i]}image"):
+            #     img_stack.append(load_img(path[0]))
+            # img_stack = process_map(load_img, img_path_list[i])
+            with get_context("spawn").Pool(30) as p:
+                img_stack = list(tqdm(p.imap(load_img, img_path_list[i]), total=len(img_path_list[i]), desc=f"{datetime.now()} Load raw {img_tags[i]}image"))
+            print(datetime.now(), f"Stack 2D {img_tags[i]}LS images")
+            img_stack = torch.stack(img_stack)
+            print(datetime.now(), f"Run {img_tags[i]}histogram")
+            hist, bin_ranges = torch.histogram(img_stack.reshape(-1), bins=int((img_stack.max()-img_stack.min())/20))
+            print(datetime.now(), f"Done {img_tags[i]}histogram, save it")
+            torch.save({'hist': hist, 'bin_ranges': bin_ranges}, hist_fn)
+        loghist = torch.log(hist)
+        loghist[loghist==-torch.inf] = 0
+        dhist = loghist[1:]-loghist[:-1]
+        # sm_num = 1
+        # while sm_num>0:
+        #     dhist = torch.nn.functional.avg_pool1d(dhist[None,:], kernel_size=5, stride=1).squeeze()
+        #     sm_num -= 1        
+        raise_range, down_range, plain_range = find_cutoff(dhist)
+        poolpad_size = int((len(hist) - len(dhist))/2)
+        longest_down = 3
+        for s, e in down_range:
+            if e-s >= longest_down:
+                imgmin = bin_ranges[s+poolpad_size]
+                imgmax = bin_ranges[e+poolpad_size]
+                longest_down = e-s
+        # img_range[i]
+        # else:
+        #     imgmin = img_stack.min()
+        #     imgmin = img_stack.max()
         for zi in trange(len(zstack_uni), desc=f"{datetime.now()} norm NIS {img_tags[i]}intensity"):
             z = zstack_uni[zi]
             zloc = torch.where(zstack==z)[0]
@@ -75,44 +114,49 @@ def main(pair_tag, brain_tag):
             # dist_org['Z'].extend([imgi[zi] for _ in range(len(data[zloc, fg[1], i]))])
             # dist_org['Channel'].extend([img_tags[i] for _ in range(len(data[zloc, fg[1], i]))])
             # dist_org['Intensity'].extend(data[zloc, fg[1], i].tolist())
-            img = img_stacks[i][imgi[zi]]
+            
             ## TODO: get imgmin imgmax by histogram
-            hist, bin_ranges = torch.histogram(torch.from_numpy(img.astype(numpy.int16)).reshape(-1).float(), bins=int((img.max()-img.min())/50))
-            loghist = torch.log(hist)
-            loghist[loghist==-torch.inf] = 0
-            dhist = loghist[1:]-loghist[:-1]
-            dhist = torch.nn.functional.avg_pool1d(dhist[None,:], kernel_size=5, stride=1).squeeze()
-            # sm_num = 10
-            # while sm_num>0:
-            #     dhist = torch.nn.functional.avg_pool1d(dhist[None,:], kernel_size=5, stride=1).squeeze()
-            #     sm_num -= 1
-            raise_range, down_range, plain_range = find_cutoff(dhist)
-            poolpad_size = int((len(hist) - len(dhist))/2)
-            longest_down = 0
-            for s, e in down_range:
-                if e-s >= longest_down:
-                    imgmin = bin_ranges[s+poolpad_size]
-                    imgmax = bin_ranges[e+poolpad_size]
-                    longest_down = e-s
-            ########################################
+            ## Default:
             # if img_tags[i] == 'C2_':
             #     imgmin, imgmax = 120, 600
             # elif img_tags[i] == 'C3_':
             #     imgmin, imgmax = 120, 24000
             ########################################
-            if img_tags[i] != 'C1_':
-                img = torch.from_numpy(img.astype(numpy.int32)).float()
+            # img = torch.from_numpy(img.astype(numpy.int32)).float()
+            # hist, bin_ranges = torch.histogram(img.reshape(-1), bins=int((img.max()-img.min())/20))
+            # loghist = torch.log(hist)
+            # loghist[loghist==-torch.inf] = 0
+            # dhist = loghist[1:]-loghist[:-1]
+            # dhist = torch.nn.functional.avg_pool1d(dhist[None,:], kernel_size=5, stride=1).squeeze()
+            # if len(dhist.shape) > 0:
+            #     if dhist.shape[0] > 1:
+            #         # sm_num = 10
+            #         # while sm_num>0:
+            #         #     dhist = torch.nn.functional.avg_pool1d(dhist[None,:], kernel_size=5, stride=1).squeeze()
+            #         #     sm_num -= 1
+            #         raise_range, down_range, plain_range = find_cutoff(dhist)
+            #         poolpad_size = int((len(hist) - len(dhist))/2)
+            #         longest_down = 3
+            #         for s, e in down_range:
+            #             if e-s >= longest_down:
+            #                 imgmin = bin_ranges[s+poolpad_size]
+            #                 imgmax = bin_ranges[e+poolpad_size]
+            #                 longest_down = e-s
+            ########################################
+            x = data[zloc, fg[1], i]
+            # if img_tags[i] != 'C1_':
+            x.clip_(min=imgmin, max=imgmax)
+            # else:
+                # imgmin, imgmax = img.min(), img.max()
+            if imgi[zi] == tgt_z:
+                img = img_stack[imgi[zi]]
                 img.clip_(min=imgmin, max=imgmax)
-                data[zloc, fg[1], i].clip_(min=imgmin, max=imgmax)
-            else:
-                imgmin, imgmax = img.min(), img.max()
-            if imgi[zi] == tgt_z and i==0:
                 saveimg = (img-img.min())/(img.max()-img.min())
                 saveimg = (saveimg*10000).numpy().astype(numpy.uint16)
                 Image.fromarray(saveimg).save(f'downloads/{brain_tag}_{(tgt_z+1):04d}_{img_names[i]}_contrast_calibrated.tif')
             # dist_norm['Z'].extend([imgi[zi] for _ in range(len(data[zloc, fg[1], i]))])
             # dist_norm['Channel'].extend([img_tags[i] for _ in range(len(data[zloc, fg[1], i]))])
-            data[zloc, fg[1], i] = (data[zloc, fg[1], i]-imgmin)/(imgmax-imgmin)
+            data[zloc, fg[1], i] = (x-imgmin)/(imgmax-imgmin)
             # dist_norm['Intensity'].extend(data[zloc, fg[1], i].tolist())
 
     # dist_org = pd.DataFrame(dist_org)
@@ -190,6 +234,8 @@ def main(pair_tag, brain_tag):
     plt.savefig(save_fn.replace('.zip',f'{vis_num}scatter.png'))
     # plt.savefig(f'{stat_r}/{pair_tag}/{brain_tag}_nis_coloc_label_{vis_num}scatter.png')
 
+def load_img(path):
+    return torch.from_numpy(imread(path).astype(numpy.int32)).float()
 
 def load_atlas(mask_fn):
     orig_roi_mask = torch.from_numpy(numpy.transpose(nib.load(mask_fn).get_fdata(), (2, 0, 1))[:, :, ::-1].copy())
