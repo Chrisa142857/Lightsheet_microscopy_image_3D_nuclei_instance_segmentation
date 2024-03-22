@@ -12,14 +12,17 @@ import matplotlib.pyplot as plt
 from sklearn.manifold import TSNE
 import nibabel as nib
 
-def main(data_root, pair_tag, brain_tag, img_tags=["C2_"]):
-    device = 'cuda:0'
+def main(data_root, pair_tag, brain_tag, img_tags=["C2_"], P_tag='P4'):
+    device = 'cuda:1'
     downsample_res = [25, 25, 25]
     seg_res = [2.5, 0.75, 0.75]
     seg_pad = (4, 20, 20) # hard coded in CPP
-    seg_root = f"/cajal/ACMUSERS/ziquanw/Lightsheet/results/P4/{pair_tag}/{brain_tag}"
-    img_root = f"/{data_root}/Felix/Lightsheet/P4/{pair_tag}/output_{brain_tag}/stitched"
-    save_root = f"/cajal/ACMUSERS/ziquanw/Lightsheet/statistics/{pair_tag}"
+    # seg_root = f"/cajal/ACMUSERS/ziquanw/Lightsheet/results/P4/{pair_tag}/{brain_tag}"
+    # img_root = f"/{data_root}/Felix/Lightsheet/P4/{pair_tag}/output_{brain_tag}/stitched"
+    # save_root = f"/cajal/ACMUSERS/ziquanw/Lightsheet/statistics/{pair_tag}"
+    seg_root = f"/cajal/ACMUSERS/ziquanw/Lightsheet/results/{P_tag}/{pair_tag}/{brain_tag}"
+    img_root = f"{data_root}"
+    save_root = f"/cajal/ACMUSERS/ziquanw/Lightsheet/statistics/{P_tag}/{pair_tag}"
     os.makedirs(save_root, exist_ok=True)
     img_paths_list = []
     for img_tag in img_tags:
@@ -160,7 +163,7 @@ def main(data_root, pair_tag, brain_tag, img_tags=["C2_"]):
             # if img_tag != 'C1_':
             #     instance_statistic[tagi] = torch.load(f"{save_root}/{brain_tag}_nis_{img_tag}intensity.zip")
             instance_statistic[tagi] = torch.load(f"{save_root}/{brain_tag}_nis_{img_tag}intensity.zip")
-
+    return 
     # num_clusters = 3
     dratio = [s/d for s, d in zip(seg_res, downsample_res)]
     sshape = torch.load(seg_paths[-1]).shape
@@ -752,7 +755,31 @@ if __name__=="__main__":
     # pair_tag = 'pair9'
     # brain_tag = 'L64D804P4'
     # main(data_root, pair_tag, brain_tag, img_tags)
-    data_root = 'lichtman'
-    pair_tag = 'pair9'
-    brain_tag = 'L64D804P6'
-    main(data_root, pair_tag, brain_tag, img_tags)
+    # data_root = 'lichtman'
+    # pair_tag = 'pair9'
+    # brain_tag = 'L64D804P6'
+    # main(data_root, pair_tag, brain_tag, img_tags)
+
+    # data_root = 'cajal'
+    # pair_tag = 'pair4'
+    # brain_tag = 'L35D719P3'
+    # main(data_root, pair_tag, brain_tag, img_tags)
+    # data_root = 'cajal'
+    # pair_tag = 'pair4'
+    # brain_tag = 'L35D719P5'
+    # main(data_root, pair_tag, brain_tag, img_tags)
+
+    # data_root = 'lichtman'
+    # pair_tag = 'pair6'
+    # brain_tag = 'L57D855P1'
+    # main(data_root, pair_tag, brain_tag, img_tags)
+
+    # data_root = 'cajal'
+    # pair_tag = 'pair18'
+    # brain_tag = 'L77D764P8'
+    # main(data_root, pair_tag, brain_tag, img_tags)
+
+    brain_tag = 'L106P3'
+    pair_tag = 'female'
+    data_root = f'/lichtman/Ian/Lightsheet/P14/stitched/female/{brain_tag}/stitched/'
+    main(data_root, pair_tag, brain_tag, img_tags, 'P14')

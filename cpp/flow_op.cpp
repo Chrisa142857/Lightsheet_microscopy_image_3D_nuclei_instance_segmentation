@@ -159,9 +159,9 @@ std::vector<torch::Tensor> flow_3DtoNIS(
      
     int64_t remove_c = 0;
     torch::Tensor M = torch::zeros(shape, torch::kLong);
-    std::vector<torch::Tensor> coords;
+    // std::vector<torch::Tensor> coords;
     std::vector<int64_t> labels;
-    std::vector<int64_t> vols;
+    // std::vector<int64_t> vols;
     std::vector<torch::Tensor> centers;
     float fLz = Lz;
     float fLy = Ly;
@@ -186,14 +186,14 @@ std::vector<torch::Tensor> flow_3DtoNIS(
             continue;
         }
         ilabel += 1;
-        vols.push_back(coord[0].size(0));
+        // vols.push_back(coord[0].size(0));
         std::vector<torch::Tensor> center({
             (coord[0].max() + coord[0].min()) / 2,
             (coord[1].max() + coord[1].min()) / 2,
             (coord[2].max() + coord[2].min()) / 2
         });
         M.index_put_({coord[0], coord[1], coord[2]}, torch::tensor(ilabel, torch::kLong));
-        coords.push_back(torch::stack(coord, 1));
+        // coords.push_back(torch::stack(coord, 1));
         labels.push_back(ilabel);
         centers.push_back(torch::stack(center, 0));
         if (k % 10000 == 0) {
@@ -201,14 +201,14 @@ std::vector<torch::Tensor> flow_3DtoNIS(
         }
     }
     std::cout << ", Done, removed " << remove_c << " ultra big or small masks, " << pix_copy.size() << " remain" << "\n"; 
-    if (coords.size() == 0){
+    if (centers.size() == 0){
         return {torch::zeros(0)};
     } else {
         return {
             M.index({p[0]+rpads[0], p[1]+rpads[1], p[2]+rpads[2]}).view(shape0), 
-            torch::cat(coords, 0), 
+            // torch::cat(coords, 0), 
             torch::tensor(labels, torch::kLong), 
-            torch::tensor(vols, torch::kLong), 
+            // torch::tensor(vols, torch::kLong), 
             torch::stack(centers)
         };
     }
