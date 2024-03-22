@@ -16,6 +16,53 @@
 ### Data:
 Multiple whole brains of mouse in different grown stage. Each brain has ~1500x9000x9000 voxels, and about 30,000,000 to 50,000,000 cells.
 
+### Example to test a whole-brain:
+
+#### 1 Obtain NIS results of one brain
+```
+P_tag=Name the test (e.g., P4)
+pair_tag=Name the brain group
+brain_tag=Name the brain
+dataroot=/path/to/directory/2D_slice_image
+saveroot=/path/to/directory/saving/results/${P_tag}/${pair_tag}/${brain_tag}/
+mkdir -p ${saveroot}
+nohup cpp/build/test ${pair_tag} ${brain_tag} ${device} ${dataroot} ${saveroot} > cpp_logs/${brain_tag}_${P_tag}.log
+```
+
+#### 2 Statistic NIS results and collect all NIS center, coordinates, intensity
+Change paths in `run_whole_brain/statistic_cpp.py`
+```
+device='cuda:X'
+seg_root = 'XXX'
+save_root = 'XXX'
+P_tag = 'XXX'
+brain_tag = 'XXX'
+pair_tag = 'XXX'
+data_root = 'XXX'
+```
+Adjust `img_tags` to get intensity of different image channels.
+
+Then `python run_whole_brain/statistic_cpp.py`. All NIS will be saved to `save_root`.
+
+#### 2.5 (Optional) Cell type labeling using intensity of different channels
+See `nis_coloc.py`
+
+#### 3 Visualize downsampled whole-brain NIS result
+Similarly, change paths in `brain_render.py`
+```
+downsample_res = X.X
+seg_res = X.X
+seg_root = 'XXX'
+stat_root = 'XXX'
+save_root = 'XXX'
+```
+
+Then `python brain_render.py`
+
+#### 4 (Optional) Statistic downsampled NIS result in region-level with registered atlas
+See `stats/statistic_nii.py`, `stats/statistic_csv.py`.
+
+
 ### TODO: Interactive visualization of whole brain nuclei segmentation results
  - [ ] Github [page](http://lightsheet-nis.ziquanw.com/).
 

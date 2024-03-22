@@ -149,20 +149,20 @@ def load_atlas(mask_fn):
 #     # plt.show(lego, __doc__, axes=1, viewup='z').close()
 #     # plt.show(vol)
 
-def main(pair_tag, brain_tag, img_tags=[]):
+def main(pair_tag, brain_tag, img_tags=[], P_tag='P4'):
     device = 'cuda:0'
     downsample_res = [25, 25, 25]
     seg_res = [2.5, 0.75, 0.75]
     # data_root = f"/cajal/Felix/Lightsheet/P4/{pair_tag}/output_{brain_tag}/registered/{brain_tag}_MOV_atlas_25.nii"
-    seg_root = f"/cajal/ACMUSERS/ziquanw/Lightsheet/results/P4/{pair_tag}/{brain_tag}"
-    stat_root = f"/cajal/ACMUSERS/ziquanw/Lightsheet/statistics/{pair_tag}"
-    save_root = f"/cajal/ACMUSERS/ziquanw/Lightsheet/renders/{pair_tag}"
+    seg_root = f"/cajal/ACMUSERS/ziquanw/Lightsheet/results/{P_tag}/{pair_tag}/{brain_tag}"
+    stat_root = f"/cajal/ACMUSERS/ziquanw/Lightsheet/statistics/{P_tag}/{pair_tag}"
+    save_root = f"/cajal/ACMUSERS/ziquanw/Lightsheet/renders/{P_tag}/{pair_tag}"
     os.makedirs(save_root, exist_ok=True)
     new_header, affine_m = init_nib_header()
     seg_paths, sortks = listdir_sorted(seg_root, "NIScpp", ftail="seg.zip", sortkid=3)
     ## For visualization purpose
     dratio = [s/d for s, d in zip(seg_res, downsample_res)]
-    dratio = [r*2 for r in dratio]
+    # dratio = [r*2 for r in dratio]
     sshape = torch.load(seg_paths[-1]).shape
     sshape = list(sshape)
     sshape[0] = sshape[0] + sortks[-1]
@@ -174,17 +174,19 @@ def main(pair_tag, brain_tag, img_tags=[]):
     total_center = torch.load(f"{stat_root}/{brain_tag}_nis_center.zip", map_location='cpu')
     total_vol = torch.load(f"{stat_root}/{brain_tag}_nis_volume.zip", map_location='cpu')
     print(datetime.now(), f"Loaded {total_vol.shape} NIS")
-    density_total, vol_avg = downsample(total_center, total_vol, dratio, dshape, device, skip_vol=True)
+    density_total, vol_avg = downsample(total_center, total_vol, dratio, dshape, device, skip_vol=False)
     print(datetime.now(), f"Saving total density {pair_tag} {brain_tag}, Max density {density_total.max()}")
-    nib.save(nib.Nifti1Image(density_total.numpy().astype(np.float64), affine_m, header=new_header), f'{save_root}/NIS_density_dr{dratio[0]}_topro_{pair_tag}_{brain_tag}.nii')
-    # nib.save(nib.Nifti1Image(vol_avg.numpy().astype(np.float64), affine_m, header=new_header), f'{save_root}/NIS_volavg_{pair_tag}_{brain_tag}.nii')
-    intensity_label_dict = torch.load(f"{stat_root}/{brain_tag}_NIS_colocContrastCalib_label.zip", map_location='cpu')
+    nib.save(nib.Nifti1Image(density_total.numpy().astype(np.float64), affine_m, header=new_header), f'{save_root}/NIS_density_{pair_tag}_{brain_tag}.nii')
+    nib.save(nib.Nifti1Image(vol_avg.numpy().astype(np.float64), affine_m, header=new_header), f'{save_root}/NIS_volavg_{pair_tag}_{brain_tag}.nii')
+    if os.path.exists(f"{stat_root}/{brain_tag}_NIS_colocContrastCalib_label.zip"):
+        intensity_label_dict = torch.load(f"{stat_root}/{brain_tag}_NIS_colocContrastCalib_label.zip", map_location='cpu')
+        dr_tag = f"dr{dratio[0]}".replace('.', '')
+        nib.save(nib.Nifti1Image(density_total.numpy().astype(np.float64), affine_m, header=new_header), f'{save_root}/NIS_density_{dr_tag}_topro_{pair_tag}_{brain_tag}.nii')
+        for k in intensity_label_dict:
+            density_k, vol_avg = downsample(total_center[intensity_label_dict[k]], total_vol[intensity_label_dict[k]], dratio, dshape, device, skip_vol=True)
+            nib.save(nib.Nifti1Image(density_k.numpy().astype(np.float64), affine_m, header=new_header), f'{save_root}/NIS_density_{dr_tag}_{k}_{pair_tag}_{brain_tag}.nii')
+    
     # label_des = {'pn_mask':1, 'np_mask': 2, 'pp_mask': 3, 'nn_mask': 4}    
-    for k in intensity_label_dict:
-        density_k, vol_avg = downsample(total_center[intensity_label_dict[k]], total_vol[intensity_label_dict[k]], dratio, dshape, device, skip_vol=True)
-        nib.save(nib.Nifti1Image(density_k.numpy().astype(np.float64), affine_m, header=new_header), f'{save_root}/NIS_density_dr{dratio[0]}_{k}_{pair_tag}_{brain_tag}.nii')
-    
-    
     # print(len(intensity_label_dict['pp_mask']), total_center.shape)
     # total_center = total_center[:len(intensity_label_dict['pp_mask'])]
     # total_vol = total_vol[:len(intensity_label_dict['pp_mask'])]
@@ -374,16 +376,16 @@ if __name__ == '__main__':
     # brain_tag = 'L73D766P4'
     # main(pair_tag, brain_tag, img_tags)
     
-    pair_tag = 'pair15'
-    brain_tag = 'L73D766P9'
-    main(pair_tag, brain_tag, img_tags)
+    # pair_tag = 'pair15'
+    # brain_tag = 'L73D766P9'
+    # main(pair_tag, brain_tag, img_tags)
 
 
     
     # pair_tag = 'pair10'
     # brain_tag = 'L64D804P3'
     # main(pair_tag, brain_tag, img_tags)
-    # # 
+    # 
     # pair_tag = 'pair10'
     # brain_tag = 'L64D804P9'
     # main(pair_tag, brain_tag, img_tags)
@@ -463,3 +465,24 @@ if __name__ == '__main__':
     # pair_tag = 'pair9'
     # brain_tag = 'L64D804P6'
     # main(pair_tag, brain_tag, img_tags)
+
+    
+    # pair_tag = 'pair4'
+    # brain_tag = 'L35D719P3'
+    # main(pair_tag, brain_tag, img_tags)
+    # pair_tag = 'pair4'
+    # brain_tag = 'L35D719P5'
+    # main(pair_tag, brain_tag, img_tags)
+
+    # pair_tag = 'pair6'
+    # brain_tag = 'L57D855P1'
+    # main(pair_tag, brain_tag, img_tags)
+
+    # pair_tag = 'pair18'
+    # brain_tag = 'L77D764P8'
+    # main(pair_tag, brain_tag, img_tags)
+    
+    pair_tag = 'female'
+    brain_tag = 'L106P3'
+    P_tag = 'P14'
+    main(pair_tag, brain_tag, img_tags, P_tag)
