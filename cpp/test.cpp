@@ -40,11 +40,12 @@ std::vector<torch::Tensor> nis_obtain(torch::jit::script::Module flow_3DtoSeed, 
     );
   if (nis_outputs.size()>1) {
     save_tensor(nis_outputs[0], savefn+"_seg.zip");
-    // save_tensor(nis_outputs[1], savefn+"_contour.zip");
-    save_tensor(nis_outputs[1], savefn+"_instance_label.zip");
-    torch::Tensor vols = nis_outputs[0].reshape(-1).bincount();
-    save_tensor(vols, savefn+"_instance_volume.zip");
-    save_tensor(nis_outputs[2], savefn+"_instance_center.zip");
+    save_tensor(nis_outputs[1], savefn+"_instance_center.zip");
+    save_tensor(nis_outputs[2], savefn+"_instance_coordinate.zip");
+    save_tensor(nis_outputs[3], savefn+"_instance_label.zip");
+    // torch::Tensor vols = nis_outputs[0].reshape(-1).bincount();
+    // save_tensor(vols, savefn+"_instance_volume.zip");
+    save_tensor(nis_outputs[4], savefn+"_instance_volume.zip");
   }
   return nis_outputs;
 }

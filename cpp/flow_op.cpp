@@ -1,5 +1,49 @@
 #include "flow_op.h"
 
+std::vector<torch::Tensor> get_large_fg_coord(torch::Tensor seg) {
+    auto options = torch::TensorOptions().dtype(torch::kInt64);
+    auto seg_shape = seg.sizes();
+    std::vector<torch::Tensor> meshgrid_tensors;
+
+    for (int dimi = 0; dimi < seg_shape.size(); ++dimi) {
+        meshgrid_tensors.push_back(torch::arange(seg_shape[dimi], options));
+    }
+
+    auto meshgrid_output = torch::meshgrid(meshgrid_tensors);
+    torch::Tensor z = meshgrid_output[0];
+    torch::Tensor y = meshgrid_output[1];
+    torch::Tensor x = meshgrid_output[2];
+
+    torch::Tensor nis_mask = seg > 0;
+    auto unique_output = at::_unique2(seg.masked_select(nis_mask), true, false, true);
+    torch::Tensor label = std::get<0>(unique_output);
+    torch::Tensor vol = std::get<2>(unique_output);
+
+    torch::Tensor splits = vol.cumsum(0);
+    z = z.masked_select(nis_mask);
+    y = y.masked_select(nis_mask);
+    x = x.masked_select(nis_mask);
+
+    auto sorted_nis = seg.masked_select(nis_mask).argsort();
+    z = z.index_select(0, sorted_nis);
+    y = y.index_select(0, sorted_nis);
+    x = x.index_select(0, sorted_nis);
+
+    auto pt = torch::stack({z, y, x}, -1);
+    auto pt_splits = torch::tensor_split(pt.cpu(), splits);
+    pt_splits.pop_back();
+
+    std::vector<torch::Tensor> ct;
+    for (const auto& p : pt_splits) {
+        ct.push_back((std::get<0>(p.max(0)) + std::get<0>(p.min(0))) / 2);
+    }
+    std::vector<torch::Tensor> outputs;
+    outputs.push_back(torch::stack(ct));
+    outputs.push_back(pt);
+    outputs.push_back(label);
+    outputs.push_back(vol);
+    return outputs;
+}
 
 torch::Tensor flow_2Dto3D(
     torch::Tensor flow_2d,  // [3 x Z x Y x X]
@@ -204,12 +248,14 @@ std::vector<torch::Tensor> flow_3DtoNIS(
     if (centers.size() == 0){
         return {torch::zeros(0)};
     } else {
+        M = M.index({p[0]+rpads[0], p[1]+rpads[1], p[2]+rpads[2]}).view(shape0);
+        std::vector<torch::Tensor> nis_profile = get_large_fg_coord(M);
         return {
-            M.index({p[0]+rpads[0], p[1]+rpads[1], p[2]+rpads[2]}).view(shape0), 
-            // torch::cat(coords, 0), 
-            torch::tensor(labels, torch::kLong), 
-            // torch::tensor(vols, torch::kLong), 
-            torch::stack(centers)
+            M, 
+            nis_profile[0], 
+            nis_profile[1], 
+            nis_profile[2], 
+            nis_profile[3]
         };
     }
 }
