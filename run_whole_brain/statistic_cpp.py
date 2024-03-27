@@ -31,7 +31,7 @@ def main(data_root, pair_tag, brain_tag, img_tags=["C2_"], P_tag='P4'):
     
     seg_paths, sortks = listdir_sorted(seg_root, "NIScpp", ftail="seg.zip", sortkid=3)
     instance_statistic = [[] for _ in range(len(img_tags))]
-    if not os.path.exists(f"{save_root}/{brain_tag}_nis_{img_tag}intensity.zip"):
+    if not os.path.exists(f"{save_root}/{brain_tag}_nis_{img_tag}intensity.zip") or True:
         seg_depths = [sortks[i+1]-sortks[i] for i in range(len(sortks)-1)]
         seg_depths += [torch.load(seg_paths[-1]).shape[0]]
         seg_whole_shape = [seg_depths[-1]+sortks[-1]]
@@ -60,6 +60,10 @@ def main(data_root, pair_tag, brain_tag, img_tags=["C2_"], P_tag='P4'):
         nis_num = 0
         pre_nis_num = None
         pre_label = None
+        DIM = 3
+        chunk_shape = (6, 16, 16) # hard coded in CPP to get mask coordinate
+        chunk_coord = torch.stack(torch.meshgrid([torch.arange(int(-chunk_shape[dimi]/2), int(chunk_shape[dimi]/2)) for dimi in range(DIM)])).reshape(DIM, -1).to(device) # 3 x Nchunk
+        max_nis_vol = chunk_coord.shape[1] # Nchunk
         for i in trange(len(seg_paths), desc=f"Start statistics for {pair_tag} {brain_tag} of {img_tags} intensity"):
             seg_path = seg_paths[i]
             zmin = sortks[i]
@@ -67,37 +71,51 @@ def main(data_root, pair_tag, brain_tag, img_tags=["C2_"], P_tag='P4'):
             label_path = seg_path.replace('seg.zip', 'instance_label.zip')
             vol_path = seg_path.replace('seg.zip', 'instance_volume.zip')
             ct_path = seg_path.replace('seg.zip', 'instance_center.zip')
-            pt_path = seg_path.replace('seg.zip', 'contour.zip')
-            label = torch.load(label_path).to(device)
-            vol = torch.load(vol_path).to(device)
+            pt_path = seg_path.replace('seg.zip', 'instance_coordinate.zip')
+            # label = torch.load(label_path).to(device)
+            # vol = torch.load(vol_path).to(device)
+            # splits = vol.cumsum(0).cpu()
+            seg = torch.load(seg_path)#.to(device)
+            # pt = torch.load(pt_path).to(torch.int16).to(device)
+            # ct = torch.load(ct_path).to(device)
+            # ct[:, 0] = ct[:, 0] - seg_pad[0]
+            # ct[:, 1] = ct[:, 1] - seg_pad[1]
+            # ct[:, 2] = ct[:, 2] - seg_pad[2]
+            z, y, x = torch.meshgrid([torch.arange(seg.shape[dimi]) for dimi in range(len(seg.shape))])
+            nis_mask = seg>0
+            label, vol = seg[nis_mask].unique(return_counts=True)
             print(datetime.now(), f"Max volume: {vol.max().item()}")
-            pt = torch.load(pt_path).to(torch.int16).to(device)
-            ct = torch.load(ct_path)
-            ct[:, 0] = ct[:, 0] - seg_pad[0] + zmin
-            ct[:, 1] = ct[:, 1] - seg_pad[1]
-            ct[:, 2] = ct[:, 2] - seg_pad[2]
-            pt[:, 0] = pt[:, 0] - seg_pad[0]
-            pt[:, 1] = pt[:, 1] - seg_pad[1]
-            pt[:, 2] = pt[:, 2] - seg_pad[2]
-            z, y, x = pt.T.clone().long()
-            pt[:, 0] = pt[:, 0] + zmin
-            assert z.min() >= 0 and z.max() < seg_depths[i], f"mask depth {seg_depths[i]}, while z.min(): {z.min()} and z.max(): {z.max()}"
-            img_stack_list = []
-            for tagi, stack_paths in enumerate(stack_paths_list):
-                load_path = stack_paths[i]
-                print(datetime.now(), f"Load images {img_tags[tagi]}")
-                with Pool(30) as p:
-                    img_stack = list(p.starmap(imread, load_path))
-                img_stack = torch.from_numpy(np.stack(img_stack).astype(np.int32)).to(device)
-                img_stack_list.append(img_stack[z, y, x].cpu())
-            print(datetime.now(), f"Start statistics:")
+            torch.save(label, label_path)
+            torch.save(vol, vol_path)
             splits = vol.cumsum(0).cpu()
-            for tagi, img_stack in enumerate(img_stack_list):
-                instance_statistic[tagi] += list(torch.tensor_split(img_stack, splits)[:-1])
-            print(datetime.now(), f"Get all intensity")
-            total_pt += list(torch.tensor_split(pt.cpu(), splits)[:-1])
-            total_center.append(ct.cpu())
+            assert vol.sum() == nis_mask.sum()
+            z, y, x = z[nis_mask], y[nis_mask], x[nis_mask]
+            sorted_nis = seg[nis_mask].argsort()
+            z, y, x = z[sorted_nis], y[sorted_nis], x[sorted_nis]
+            pt = torch.stack([z, y, x], -1)
+            torch.save(pt, pt_path)
+            # assert z.min() >= 0 and z.max() < seg_depths[i], f"mask depth {seg_depths[i]}, while z.min(): {z.min()} and z.max(): {z.max()}"
+            # img_stack_list = []
+            # for tagi, stack_paths in enumerate(stack_paths_list):
+            #     load_path = stack_paths[i]
+            #     print(datetime.now(), f"Load images {img_tags[tagi]}")
+            #     with Pool(30) as p:
+            #         img_stack = list(p.starmap(imread, load_path))
+            #     img_stack = torch.from_numpy(np.stack(img_stack).astype(np.int32)).to(device)
+            #     img_stack_list.append(img_stack[z, y, x].cpu())
+            
+            # print(datetime.now(), f"Start statistics:")
+            
+            # for tagi, img_stack in enumerate(img_stack_list):
+            #     instance_statistic[tagi] += list(torch.tensor_split(img_stack, splits)[:-1])
+            # print(datetime.now(), f"Get all intensity")
+            pt = torch.tensor_split(pt.cpu(), splits)[:-1]
+            ct = torch.stack([(p.max(0)[0] + p.min(0)[0])/2 for p in pt])
+            torch.save(ct, ct_path)
+            total_pt += list(pt)
+            total_center += ct
             total_vol.append(vol.cpu())
+            label = label.to(device)
             total_label.append(label.cpu())
             for j in trange(len(label), desc='Find stitch-needed NIS'):
                 loc = torch.where(label[j] == stitch_remap[0])[0]
@@ -121,39 +139,32 @@ def main(data_root, pair_tag, brain_tag, img_tags=["C2_"], P_tag='P4'):
         for loci in trange(len(remap_src_loc), desc="Apply remap to coordinates and intensity"):
             sloc, tloc = remap_src_loc[loci], remap_tgt_loc[loci]
             total_pt[tloc] = torch.cat([total_pt[sloc], total_pt[tloc]])
-            for tagi in range(len(img_tags)):
-                instance_statistic[tagi][tloc] = torch.cat([instance_statistic[tagi][sloc], instance_statistic[tagi][tloc]])
+            # for tagi in range(len(img_tags)):
+            #     instance_statistic[tagi][tloc] = torch.cat([instance_statistic[tagi][sloc], instance_statistic[tagi][tloc]])
 
-        print(datetime.now(), "Pad coordinates and intensity to the same length")
-        total_pt = torch.nn.utils.rnn.pad_sequence(total_pt, batch_first=True, padding_value=0).cpu() # N x L x 3
-        for tagi in range(len(img_tags)):       
-            instance_statistic[tagi] = torch.nn.utils.rnn.pad_sequence(instance_statistic[tagi], batch_first=True, padding_value=0).cpu() # N x L
-        print("Padded shape:", total_pt.shape, instance_statistic[0].shape)
+        # print(datetime.now(), "Pad coordinates and intensity to the same length")
+        # total_pt = torch.nn.utils.rnn.pad_sequence(total_pt, batch_first=True, padding_value=0).cpu() # N x L x 3
+        # for tagi in range(len(img_tags)):       
+        #     instance_statistic[tagi] = torch.nn.utils.rnn.pad_sequence(instance_statistic[tagi], batch_first=True, padding_value=0).cpu() # N x L
+        # print("Padded shape:", total_pt.shape, instance_statistic[0].shape)
+        
         print(datetime.now(), "Remove stitched NIS")
         total_label = total_label[remain_loc]
         total_center = total_center[remain_loc]
         total_vol = total_vol[remain_loc]
-        total_pt = total_pt[remain_loc]
-        for tagi in range(len(img_tags)):
-            instance_statistic[tagi] = instance_statistic[tagi][remain_loc]
-        # for l0, l1 in tqdm(stitch_remap.T, desc='Init label remap dict'):
-        #     l0, l1 = l0.item(), l1.item()
-        #     label_dict[l0] = l1
+        total_pt = torch.cat([total_pt[i] for i in torch.where(remain_loc)[0]])
+        # for tagi in range(len(img_tags)):
+        #     instance_statistic[tagi] = torch.cat([instance_statistic[tagi][i] for i in torch.where(remain_loc)[0]])
 
-        # total_label = torch.LongTensor(list(total_pt.keys()))
-        # total_center = torch.stack(list(total_center.values()))
-        # total_vol = torch.stack(list(total_vol.values()))
         print(datetime.now(), f"Save")
-        torch.save(total_label, f"{save_root}/{brain_tag}_nis_index.zip")
-        torch.save(total_center, f"{save_root}/{brain_tag}_nis_center.zip")
+        # torch.save(total_label, f"{save_root}/{brain_tag}_nis_index.zip")
+        # torch.save(total_center, f"{save_root}/{brain_tag}_nis_center.zip")
         torch.save(total_vol, f"{save_root}/{brain_tag}_nis_volume.zip")
-        torch.save(total_pt[..., 0], f"{save_root}/{brain_tag}_nis_coordinate_d0.zip")
-        torch.save(total_pt[..., 1], f"{save_root}/{brain_tag}_nis_coordinate_d1.zip")
-        torch.save(total_pt[..., 2], f"{save_root}/{brain_tag}_nis_coordinate_d2.zip")
-        # torch.save(list(total_pt.values()), f"{save_root}/{brain_tag}_nis_coordinate.zip")
-        for tagi, img_tag in enumerate(img_tags):
-            torch.save(instance_statistic[tagi], f"{save_root}/{brain_tag}_nis_{img_tag}intensity.zip")
-        #     torch.save(list(instance_statistic[tagi].values()), f"{save_root}/{brain_tag}_nis_{img_tag}intensity.zip")
+        # torch.save(total_pt[..., 0], f"{save_root}/{brain_tag}_nis_coordinate_d0.zip")
+        # torch.save(total_pt[..., 1], f"{save_root}/{brain_tag}_nis_coordinate_d1.zip")
+        # torch.save(total_pt[..., 2], f"{save_root}/{brain_tag}_nis_coordinate_d2.zip")
+        # for tagi, img_tag in enumerate(img_tags):
+        #     torch.save(instance_statistic[tagi], f"{save_root}/{brain_tag}_nis_{img_tag}intensity.zip")
     else:
         print(datetime.now(), f"Already applied remap, loading")
         total_center = torch.load(f"{save_root}/{brain_tag}_nis_center.zip")
@@ -594,192 +605,192 @@ def pairwise_cosine(data1, data2, device=torch.device('cpu')):
 if __name__=="__main__":
     img_tags = ['C1_', 'C2_','C3_']
 
-    # data_root = 'cajal'
-    # pair_tag = 'pair6'
-    # brain_tag = 'L57D855P6'
-    # main(data_root, pair_tag, brain_tag, img_tags)
-    # # TODO: NIS used data in lichtman, but should to use cajal
-    # data_root = 'lichtman'
-    # pair_tag = 'pair6'
-    # brain_tag = 'L57D855P2'
-    # main(data_root, pair_tag, brain_tag, img_tags)
+    pair_tag = 'pair6'
+    brain_tag = 'L57D855P6'
+    data_root = f'/cajal/Felix/Lightsheet/P4/{pair_tag}/output_{brain_tag}/stitched'
+    main(data_root, pair_tag, brain_tag, img_tags)
+    # TODO: NIS used data in lichtman, but should to use cajal
+    pair_tag = 'pair6'
+    brain_tag = 'L57D855P2'
+    data_root = f'/lichtman/Felix/Lightsheet/P4/{pair_tag}/output_{brain_tag}/stitched'
+    main(data_root, pair_tag, brain_tag, img_tags)
 
 
-    # data_root = 'cajal'
-    # pair_tag = 'pair5'
-    # brain_tag = 'L57D855P4'
-    # main(data_root, pair_tag, brain_tag, img_tags)
-    # data_root = 'lichtman'
-    # pair_tag = 'pair5'
-    # brain_tag = 'L57D855P5'
-    # main(data_root, pair_tag, brain_tag, img_tags)
+    pair_tag = 'pair5'
+    brain_tag = 'L57D855P4'
+    data_root = f'/cajal/Felix/Lightsheet/P4/{pair_tag}/output_{brain_tag}/stitched'
+    main(data_root, pair_tag, brain_tag, img_tags)
+    pair_tag = 'pair5'
+    brain_tag = 'L57D855P5'
+    data_root = f'/lichtman/Felix/Lightsheet/P4/{pair_tag}/output_{brain_tag}/stitched'
+    main(data_root, pair_tag, brain_tag, img_tags)
 
 
-    # data_root = 'lichtman'
-    # pair_tag = 'pair19'
-    # brain_tag = 'L79D769P8'
-    # main(data_root, pair_tag, brain_tag, img_tags)
-    # data_root = 'lichtman'
-    # pair_tag = 'pair19'
-    # brain_tag = 'L79D769P5'
-    # main(data_root, pair_tag, brain_tag, img_tags)
+    pair_tag = 'pair19'
+    brain_tag = 'L79D769P8'
+    data_root = f'/lichtman/Felix/Lightsheet/P4/{pair_tag}/output_{brain_tag}/stitched'
+    main(data_root, pair_tag, brain_tag, img_tags)
+    pair_tag = 'pair19'
+    brain_tag = 'L79D769P5'
+    data_root = f'/lichtman/Felix/Lightsheet/P4/{pair_tag}/output_{brain_tag}/stitched'
+    main(data_root, pair_tag, brain_tag, img_tags)
 
 
-    # data_root = 'cajal'
-    # pair_tag = 'pair17'
-    # brain_tag = 'L77D764P2'
-    # main(data_root, pair_tag, brain_tag, img_tags)
-    # data_root = 'lichtman'
-    # pair_tag = 'pair17'
-    # brain_tag = 'L77D764P9'
-    # main(data_root, pair_tag, brain_tag, img_tags)
+    pair_tag = 'pair17'
+    brain_tag = 'L77D764P2'
+    data_root = f'/cajal/Felix/Lightsheet/P4/{pair_tag}/output_{brain_tag}/stitched'
+    main(data_root, pair_tag, brain_tag, img_tags)
+    pair_tag = 'pair17'
+    brain_tag = 'L77D764P9'
+    data_root = f'/lichtman/Felix/Lightsheet/P4/{pair_tag}/output_{brain_tag}/stitched'
+    main(data_root, pair_tag, brain_tag, img_tags)
 
 
-    # data_root = 'lichtman'
-    # pair_tag = 'pair13'
-    # brain_tag = 'L69D764P6'
-    # main(data_root, pair_tag, brain_tag, img_tags)
-    # data_root = 'lichtman'
-    # pair_tag = 'pair13'
-    # brain_tag = 'L69D764P9'
-    # main(data_root, pair_tag, brain_tag, img_tags)
+    pair_tag = 'pair13'
+    brain_tag = 'L69D764P6'
+    data_root = f'/lichtman/Felix/Lightsheet/P4/{pair_tag}/output_{brain_tag}/stitched'
+    main(data_root, pair_tag, brain_tag, img_tags)
+    pair_tag = 'pair13'
+    brain_tag = 'L69D764P9'
+    data_root = f'/lichtman/Felix/Lightsheet/P4/{pair_tag}/output_{brain_tag}/stitched'
+    main(data_root, pair_tag, brain_tag, img_tags)
 
-    # data_root = 'lichtman'
-    # pair_tag = 'pair15'
-    # brain_tag = 'L73D766P4'
-    # main(data_root, pair_tag, brain_tag, img_tags)
-    # data_root = 'lichtman'
-    # pair_tag = 'pair15'
-    # brain_tag = 'L73D766P9'
-    # main(data_root, pair_tag, brain_tag, img_tags)
-
-
-    # data_root = 'lichtman'
-    # pair_tag = 'pair10'
-    # brain_tag = 'L64D804P3'
-    # main(data_root, pair_tag, brain_tag, img_tags)
-    # data_root = 'lichtman'
-    # pair_tag = 'pair10'
-    # brain_tag = 'L64D804P9'
-    # main(data_root, pair_tag, brain_tag, img_tags)
-
-    # data_root = 'lichtman'
-    # pair_tag = 'pair11'
-    # brain_tag = 'L66D764P3'
-    # main(data_root, pair_tag, brain_tag, img_tags)
-    # data_root = 'lichtman'
-    # pair_tag = 'pair11'
-    # brain_tag = 'L66D764P8'
-    # main(data_root, pair_tag, brain_tag, img_tags)
-
-    # data_root = 'lichtman'
-    # pair_tag = 'pair12'
-    # brain_tag = 'L66D764P5'
-    # main(data_root, pair_tag, brain_tag, img_tags)
-    # data_root = 'lichtman'
-    # pair_tag = 'pair12'
-    # brain_tag = 'L66D764P6'
-    # main(data_root, pair_tag, brain_tag, img_tags)
-
-    # data_root = 'lichtman'
-    # pair_tag = 'pair14'
-    # brain_tag = 'L73D766P5'
-    # main(data_root, pair_tag, brain_tag, img_tags)
-    # data_root = 'lichtman'
-    # pair_tag = 'pair14'
-    # brain_tag = 'L73D766P7'
-    # main(data_root, pair_tag, brain_tag, img_tags)
-
-    # data_root = 'lichtman'
-    # pair_tag = 'pair16'
-    # brain_tag = 'L74D769P4'
-    # main(data_root, pair_tag, brain_tag, img_tags)
-    # data_root = 'lichtman'
-    # pair_tag = 'pair16'
-    # brain_tag = 'L74D769P8'
-    # main(data_root, pair_tag, brain_tag, img_tags)
-
-    # data_root = 'cajal'
-    # pair_tag = 'pair18'
-    # brain_tag = 'L77D764P4'
-    # main(data_root, pair_tag, brain_tag, img_tags)
-
-    # data_root = 'lichtman'
-    # pair_tag = 'pair20'
-    # brain_tag = 'L79D769P7'
-    # main(data_root, pair_tag, brain_tag, img_tags)
-    # data_root = 'lichtman'
-    # pair_tag = 'pair20'
-    # brain_tag = 'L79D769P9'
-    # main(data_root, pair_tag, brain_tag, img_tags)
-
-    # data_root = 'lichtman'
-    # pair_tag = 'pair21'
-    # brain_tag = 'L91D814P2'
-    # main(data_root, pair_tag, brain_tag, img_tags)
-    # data_root = 'lichtman'
-    # pair_tag = 'pair21'
-    # brain_tag = 'L91D814P6'
-    # main(data_root, pair_tag, brain_tag, img_tags)
-
-    # data_root = 'lichtman'
-    # pair_tag = 'pair22'
-    # brain_tag = 'L91D814P3'
-    # main(data_root, pair_tag, brain_tag, img_tags)
-    # data_root = 'lichtman'
-    # pair_tag = 'pair22'
-    # brain_tag = 'L91D814P4'
-    # main(data_root, pair_tag, brain_tag, img_tags)
-
-    # data_root = 'lichtman'
-    # pair_tag = 'pair3'
-    # brain_tag = 'L35D719P1'
-    # main(data_root, pair_tag, brain_tag, img_tags)
-    # data_root = 'lichtman'
-    # pair_tag = 'pair3'
-    # brain_tag = 'L35D719P4'
-    # main(data_root, pair_tag, brain_tag, img_tags)
+    pair_tag = 'pair15'
+    brain_tag = 'L73D766P4'
+    data_root = f'/lichtman/Felix/Lightsheet/P4/{pair_tag}/output_{brain_tag}/stitched'
+    main(data_root, pair_tag, brain_tag, img_tags)
+    pair_tag = 'pair15'
+    brain_tag = 'L73D766P9'
+    data_root = f'/lichtman/Felix/Lightsheet/P4/{pair_tag}/output_{brain_tag}/stitched'
+    main(data_root, pair_tag, brain_tag, img_tags)
 
 
-    # data_root = 'lichtman'
-    # pair_tag = 'pair8'
-    # brain_tag = 'L59D878P2'
-    # main(data_root, pair_tag, brain_tag, img_tags)
-    # data_root = 'lichtman'
-    # pair_tag = 'pair8'
-    # brain_tag = 'L59D878P5'
-    # main(data_root, pair_tag, brain_tag, img_tags)
+    pair_tag = 'pair10'
+    brain_tag = 'L64D804P3'
+    data_root = f'/lichtman/Felix/Lightsheet/P4/{pair_tag}/output_{brain_tag}/stitched'
+    main(data_root, pair_tag, brain_tag, img_tags)
+    pair_tag = 'pair10'
+    brain_tag = 'L64D804P9'
+    data_root = f'/lichtman/Felix/Lightsheet/P4/{pair_tag}/output_{brain_tag}/stitched'
+    main(data_root, pair_tag, brain_tag, img_tags)
+
+    pair_tag = 'pair11'
+    brain_tag = 'L66D764P3'
+    data_root = f'/lichtman/Felix/Lightsheet/P4/{pair_tag}/output_{brain_tag}/stitched'
+    main(data_root, pair_tag, brain_tag, img_tags)
+    pair_tag = 'pair11'
+    brain_tag = 'L66D764P8'
+    data_root = f'/lichtman/Felix/Lightsheet/P4/{pair_tag}/output_{brain_tag}/stitched'
+    main(data_root, pair_tag, brain_tag, img_tags)
+
+    pair_tag = 'pair12'
+    brain_tag = 'L66D764P5'
+    data_root = f'/lichtman/Felix/Lightsheet/P4/{pair_tag}/output_{brain_tag}/stitched'
+    main(data_root, pair_tag, brain_tag, img_tags)
+    pair_tag = 'pair12'
+    brain_tag = 'L66D764P6'
+    data_root = f'/lichtman/Felix/Lightsheet/P4/{pair_tag}/output_{brain_tag}/stitched'
+    main(data_root, pair_tag, brain_tag, img_tags)
+
+    pair_tag = 'pair14'
+    brain_tag = 'L73D766P5'
+    data_root = f'/lichtman/Felix/Lightsheet/P4/{pair_tag}/output_{brain_tag}/stitched'
+    main(data_root, pair_tag, brain_tag, img_tags)
+    pair_tag = 'pair14'
+    brain_tag = 'L73D766P7'
+    data_root = f'/lichtman/Felix/Lightsheet/P4/{pair_tag}/output_{brain_tag}/stitched'
+    main(data_root, pair_tag, brain_tag, img_tags)
+
+    pair_tag = 'pair16'
+    brain_tag = 'L74D769P4'
+    data_root = f'/lichtman/Felix/Lightsheet/P4/{pair_tag}/output_{brain_tag}/stitched'
+    main(data_root, pair_tag, brain_tag, img_tags)
+    pair_tag = 'pair16'
+    brain_tag = 'L74D769P8'
+    data_root = f'/lichtman/Felix/Lightsheet/P4/{pair_tag}/output_{brain_tag}/stitched'
+    main(data_root, pair_tag, brain_tag, img_tags)
+
+    pair_tag = 'pair18'
+    brain_tag = 'L77D764P4'
+    data_root = f'/cajal/Felix/Lightsheet/P4/{pair_tag}/output_{brain_tag}/stitched'
+    main(data_root, pair_tag, brain_tag, img_tags)
+
+    pair_tag = 'pair20'
+    brain_tag = 'L79D769P7'
+    data_root = f'/lichtman/Felix/Lightsheet/P4/{pair_tag}/output_{brain_tag}/stitched'
+    main(data_root, pair_tag, brain_tag, img_tags)
+    pair_tag = 'pair20'
+    brain_tag = 'L79D769P9'
+    data_root = f'/lichtman/Felix/Lightsheet/P4/{pair_tag}/output_{brain_tag}/stitched'
+    main(data_root, pair_tag, brain_tag, img_tags)
+
+    pair_tag = 'pair21'
+    brain_tag = 'L91D814P2'
+    data_root = f'/lichtman/Felix/Lightsheet/P4/{pair_tag}/output_{brain_tag}/stitched'
+    main(data_root, pair_tag, brain_tag, img_tags)
+    pair_tag = 'pair21'
+    brain_tag = 'L91D814P6'
+    data_root = f'/lichtman/Felix/Lightsheet/P4/{pair_tag}/output_{brain_tag}/stitched'
+    main(data_root, pair_tag, brain_tag, img_tags)
+
+    pair_tag = 'pair22'
+    brain_tag = 'L91D814P3'
+    data_root = f'/lichtman/Felix/Lightsheet/P4/{pair_tag}/output_{brain_tag}/stitched'
+    main(data_root, pair_tag, brain_tag, img_tags)
+    pair_tag = 'pair22'
+    brain_tag = 'L91D814P4'
+    data_root = f'/lichtman/Felix/Lightsheet/P4/{pair_tag}/output_{brain_tag}/stitched'
+    main(data_root, pair_tag, brain_tag, img_tags)
+
+    pair_tag = 'pair3'
+    brain_tag = 'L35D719P1'
+    data_root = f'/lichtman/Felix/Lightsheet/P4/{pair_tag}/output_{brain_tag}/stitched'
+    main(data_root, pair_tag, brain_tag, img_tags)
+    pair_tag = 'pair3'
+    brain_tag = 'L35D719P4'
+    data_root = f'/lichtman/Felix/Lightsheet/P4/{pair_tag}/output_{brain_tag}/stitched'
+    main(data_root, pair_tag, brain_tag, img_tags)
 
 
-    # data_root = 'lichtman'
-    # pair_tag = 'pair9'
-    # brain_tag = 'L64D804P4'
-    # main(data_root, pair_tag, brain_tag, img_tags)
-    # data_root = 'lichtman'
-    # pair_tag = 'pair9'
-    # brain_tag = 'L64D804P6'
-    # main(data_root, pair_tag, brain_tag, img_tags)
+    pair_tag = 'pair8'
+    brain_tag = 'L59D878P2'
+    data_root = f'/lichtman/Felix/Lightsheet/P4/{pair_tag}/output_{brain_tag}/stitched'
+    main(data_root, pair_tag, brain_tag, img_tags)
+    pair_tag = 'pair8'
+    brain_tag = 'L59D878P5'
+    data_root = f'/lichtman/Felix/Lightsheet/P4/{pair_tag}/output_{brain_tag}/stitched'
+    main(data_root, pair_tag, brain_tag, img_tags)
 
-    # data_root = 'cajal'
-    # pair_tag = 'pair4'
-    # brain_tag = 'L35D719P3'
-    # main(data_root, pair_tag, brain_tag, img_tags)
-    # data_root = 'cajal'
-    # pair_tag = 'pair4'
-    # brain_tag = 'L35D719P5'
-    # main(data_root, pair_tag, brain_tag, img_tags)
 
-    # data_root = 'lichtman'
-    # pair_tag = 'pair6'
-    # brain_tag = 'L57D855P1'
-    # main(data_root, pair_tag, brain_tag, img_tags)
+    pair_tag = 'pair9'
+    brain_tag = 'L64D804P4'
+    data_root = f'/lichtman/Felix/Lightsheet/P4/{pair_tag}/output_{brain_tag}/stitched'
+    main(data_root, pair_tag, brain_tag, img_tags)
+    pair_tag = 'pair9'
+    brain_tag = 'L64D804P6'
+    data_root = f'/lichtman/Felix/Lightsheet/P4/{pair_tag}/output_{brain_tag}/stitched'
+    main(data_root, pair_tag, brain_tag, img_tags)
 
-    # data_root = 'cajal'
-    # pair_tag = 'pair18'
-    # brain_tag = 'L77D764P8'
-    # main(data_root, pair_tag, brain_tag, img_tags)
+    pair_tag = 'pair4'
+    brain_tag = 'L35D719P3'
+    data_root = f'/cajal/Felix/Lightsheet/P4/{pair_tag}/output_{brain_tag}/stitched'
+    main(data_root, pair_tag, brain_tag, img_tags)
+    pair_tag = 'pair4'
+    brain_tag = 'L35D719P5'
+    data_root = f'/cajal/Felix/Lightsheet/P4/{pair_tag}/output_{brain_tag}/stitched'
+    main(data_root, pair_tag, brain_tag, img_tags)
 
-    brain_tag = 'L106P3'
-    pair_tag = 'female'
-    data_root = f'/lichtman/Ian/Lightsheet/P14/stitched/female/{brain_tag}/stitched/'
-    main(data_root, pair_tag, brain_tag, img_tags, 'P14')
+    pair_tag = 'pair6'
+    brain_tag = 'L57D855P1'
+    data_root = f'/lichtman/Felix/Lightsheet/P4/{pair_tag}/output_{brain_tag}/stitched'
+    main(data_root, pair_tag, brain_tag, img_tags)
+
+    pair_tag = 'pair18'
+    brain_tag = 'L77D764P8'
+    data_root = f'/cajal/Felix/Lightsheet/P4/{pair_tag}/output_{brain_tag}/stitched'
+    main(data_root, pair_tag, brain_tag, img_tags)
+
+    # brain_tag = 'L106P3'
+    # pair_tag = 'female'
+    # data_root = f'/lichtman/Ian/Lightsheet/P14/stitched/female/{brain_tag}/stitched/'
+    # main(data_root, pair_tag, brain_tag, img_tags, 'P14')
