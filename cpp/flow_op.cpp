@@ -9,37 +9,50 @@ std::vector<torch::Tensor> get_large_fg_coord(torch::Tensor seg) {
         meshgrid_tensors.push_back(torch::arange(seg_shape[dimi], options));
     }
 
+    print_with_time("Start meshgrid");
     auto meshgrid_output = torch::meshgrid(meshgrid_tensors);
-    torch::Tensor z = meshgrid_output[0];
-    torch::Tensor y = meshgrid_output[1];
-    torch::Tensor x = meshgrid_output[2];
-
+    torch::Tensor meshgrid_coord;
+    print_with_time("Done meshgrid, start mask seg fg");
     torch::Tensor nis_mask = seg > 0;
-    auto unique_output = at::_unique2(seg.masked_select(nis_mask), true, false, true);
+    meshgrid_coord = torch::stack({
+        meshgrid_output[0].masked_select(nis_mask),
+        meshgrid_output[1].masked_select(nis_mask),
+        meshgrid_output[2].masked_select(nis_mask)}, -1).to(torch::kInt16);
+    torch::Tensor seg_fg = seg.masked_select(nis_mask);
+    print_with_time("Done mask, start unique seg fg to get volume");
+    auto unique_output = at::_unique2(seg_fg, true, false, true);
     torch::Tensor label = std::get<0>(unique_output);
     torch::Tensor vol = std::get<2>(unique_output);
+    print_with_time("Done unique, start resort seg fg to group nis coordinate");
 
+    auto sorted_nis = seg_fg.argsort();
+    meshgrid_coord = meshgrid_coord.index_select(0, sorted_nis); // vol*N x 3
+    // print_with_time("Done resort, start loop nis to get center of coordinate");
+    print_with_time("Done resort, start mask big nis");
+
+    torch::Tensor big_nis_mask = vol > 1000;
+    label = label.masked_select(torch::logical_not(big_nis_mask));
     torch::Tensor splits = vol.cumsum(0);
-    z = z.masked_select(nis_mask);
-    y = y.masked_select(nis_mask);
-    x = x.masked_select(nis_mask);
-
-    auto sorted_nis = seg.masked_select(nis_mask).argsort();
-    z = z.index_select(0, sorted_nis);
-    y = y.index_select(0, sorted_nis);
-    x = x.index_select(0, sorted_nis);
-
-    auto pt = torch::stack({z, y, x}, -1);
-    auto pt_splits = torch::tensor_split(pt.cpu(), splits);
+    torch::Tensor big_ind = torch::where(big_nis_mask)[0];
+    torch::Tensor mask_pt = torch::ones({meshgrid_coord.size(0)}, torch::kBool);
+    for ( int bi=0; bi < big_ind.sizes()[0]; bi++){
+        torch::Tensor big_pt_ind = torch::arange((splits[big_ind[bi]]-vol[big_ind[bi]]).item(), splits[big_ind[bi]].item());
+        mask_pt.index_put_({big_pt_ind}, false);
+    };
+    meshgrid_coord = meshgrid_coord.index({mask_pt, torch::indexing::Slice()});
+    vol = vol.masked_select(torch::logical_not(big_nis_mask));
+    splits = vol.cumsum(0);
+    print_with_time("Done mask big nis, start pad_sequence(pt) to get center of coordinate by median(pt)");
+    
+    auto pt_splits = torch::tensor_split(meshgrid_coord, splits); // [vol x 3,...]xN
     pt_splits.pop_back();
+    torch::Tensor padded_pt = torch::nn::utils::rnn::pad_sequence(pt_splits, false); // max_vol x N x 3
+    torch::Tensor ct = padded_pt[0].to(torch::kInt16); // N x 3
 
-    std::vector<torch::Tensor> ct;
-    for (const auto& p : pt_splits) {
-        ct.push_back((std::get<0>(p.max(0)) + std::get<0>(p.min(0))) / 2);
-    }
+    print_with_time("Done get center, out to save tensors");
     std::vector<torch::Tensor> outputs;
-    outputs.push_back(torch::stack(ct));
-    outputs.push_back(pt);
+    outputs.push_back(ct);
+    outputs.push_back(meshgrid_coord);
     outputs.push_back(label);
     outputs.push_back(vol);
     return outputs;
@@ -204,9 +217,11 @@ std::vector<torch::Tensor> flow_3DtoNIS(
     int64_t remove_c = 0;
     torch::Tensor M = torch::zeros(shape, torch::kLong);
     // std::vector<torch::Tensor> coords;
-    std::vector<int64_t> labels;
+    std::vector<torch::Tensor> labels;
     // std::vector<int64_t> vols;
-    std::vector<torch::Tensor> centers;
+    std::vector<torch::Tensor> coords0;
+    std::vector<torch::Tensor> coords1;
+    std::vector<torch::Tensor> coords2;
     float fLz = Lz;
     float fLy = Ly;
     float fLx = Lx;
@@ -231,23 +246,31 @@ std::vector<torch::Tensor> flow_3DtoNIS(
         }
         ilabel += 1;
         // vols.push_back(coord[0].size(0));
-        std::vector<torch::Tensor> center({
-            (coord[0].max() + coord[0].min()) / 2,
-            (coord[1].max() + coord[1].min()) / 2,
-            (coord[2].max() + coord[2].min()) / 2
-        });
-        M.index_put_({coord[0], coord[1], coord[2]}, torch::tensor(ilabel, torch::kLong));
+        // std::vector<torch::Tensor> center({
+        //     (coord[0].max() + coord[0].min()) / 2,
+        //     (coord[1].max() + coord[1].min()) / 2,
+        //     (coord[2].max() + coord[2].min()) / 2
+        // });
+        labels.push_back(torch::tensor(ilabel, torch::kLong).repeat({coord[0].size(0)}));
+        coords0.push_back(coord[0]);
+        coords1.push_back(coord[1]);
+        coords2.push_back(coord[2]);
+        // M.index_put_({coord[0], coord[1], coord[2]}, torch::tensor(ilabel, torch::kLong));
         // coords.push_back(torch::stack(coord, 1));
-        labels.push_back(ilabel);
-        centers.push_back(torch::stack(center, 0));
+        // labels.push_back(ilabel);
+        // centers.push_back(torch::stack(center, 0));
         if (k % 10000 == 0) {
             std::cout << "...";
         }
     }
     std::cout << ", Done, removed " << remove_c << " ultra big or small masks, " << pix_copy.size() << " remain" << "\n"; 
-    if (centers.size() == 0){
+    if (coords0.size() == 0){
         return {torch::zeros(0)};
     } else {
+        torch::Tensor coord0 = torch::cat(coords0);
+        torch::Tensor coord1 = torch::cat(coords1);
+        torch::Tensor coord2 = torch::cat(coords2);
+        M.index_put_({coord0, coord1, coord2}, torch::cat(labels));
         M = M.index({p[0]+rpads[0], p[1]+rpads[1], p[2]+rpads[2]}).view(shape0);
         std::vector<torch::Tensor> nis_profile = get_large_fg_coord(M);
         return {
@@ -255,7 +278,8 @@ std::vector<torch::Tensor> flow_3DtoNIS(
             nis_profile[0], 
             nis_profile[1], 
             nis_profile[2], 
-            nis_profile[3]
+            nis_profile[3],
+            torch::tensor(ilabel, torch::kLong)
         };
     }
 }

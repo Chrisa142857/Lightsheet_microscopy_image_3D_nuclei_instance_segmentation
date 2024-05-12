@@ -1,7 +1,7 @@
 #include "utils.h"
 
 namespace fs = std::filesystem;
-
+namespace F = torch::nn::functional;
 
 std::set<std::string> listdir_sorted(std::string path){
     std::set<std::string> sorted_by_name;
@@ -30,6 +30,41 @@ std::vector<torch::Tensor> pad_image(torch::Tensor img0){
   outputs.push_back(ysub);
   outputs.push_back(xsub);
   return outputs;
+}
+
+torch::Tensor normalize_image(torch::Tensor img){
+  // img.shape = [B, H, W]
+  float eps = 0.001;
+  // ##### Batch-wise normalization ####
+  // int64_t area = img.size(0) * img.size(1) * img.size(2);
+  // int64_t p99 = std::ceil(area*0.99);
+  // int64_t p1 = std::ceil(area*0.01);
+  // auto sortout = torch::sort(img.reshape({-1}));
+  // torch::Tensor i99 = std::get<0>(sortout).index({p99-1});
+  // torch::Tensor i1 = std::get<0>(sortout).index({p1-1});
+  // img = img - i1;
+  // return img.clip(eps) / (i99-i1).clip(eps);
+  // ##### Patch-wise normalization ####
+  int64_t area = img.size(1) * img.size(2);
+  int64_t p99 = std::ceil(area*0.99);
+  int64_t p1 = std::ceil(area*0.01);
+  auto sortout = torch::sort(img.reshape({img.size(0), -1}));
+  torch::Tensor flatten = std::get<0>(sortout);
+  torch::Tensor i99 = flatten.index({torch::indexing::Slice(), p99-1});
+  torch::Tensor i1 = flatten.index({torch::indexing::Slice(), p1-1});
+  img = (img-(i1.unsqueeze(1).unsqueeze(1)));
+  img = img.clip(eps) / (i99-i1).clip(eps).unsqueeze(1).unsqueeze(1);
+  return img;
+}
+
+torch::Tensor preproc_image(torch::Tensor img){
+  img = normalize_image(img);
+  img = torch::cat({img, torch::zeros_like(img)});
+  img = F::interpolate(
+      img.unsqueeze(0), 
+      F::InterpolateFuncOptions().scale_factor(std::vector<double>({1.437293, 1.437293})).mode(torch::kBilinear).align_corners(false)
+  );
+  return img[0];
 }
 
 

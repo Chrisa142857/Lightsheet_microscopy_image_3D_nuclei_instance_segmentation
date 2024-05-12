@@ -39,7 +39,8 @@ std::vector<torch::Tensor> nis_obtain(torch::jit::script::Module flow_3DtoSeed, 
     ilabel, 20
     );
   if (nis_outputs.size()>1) {
-    save_tensor(nis_outputs[0], savefn+"_seg.zip");
+    std::vector<int64_t> seg_size = {nis_outputs[0].size(0), nis_outputs[0].size(1), nis_outputs[0].size(2)};
+    save_tensor(torch::from_blob(seg_size.data(), seg_size.size(), torch::kLong), savefn+"_seg_meta.zip");
     save_tensor(nis_outputs[1], savefn+"_instance_center.zip");
     save_tensor(nis_outputs[2], savefn+"_instance_coordinate.zip");
     save_tensor(nis_outputs[3], savefn+"_instance_label.zip");
@@ -54,8 +55,8 @@ std::vector<torch::Tensor> gpu_process(
   int64_t i, 
   int64_t chunk_depth, 
   std::vector<std::string> img_fns,
-  torch::jit::script::Module get_tile_param, 
-  torch::jit::script::Module preproc, 
+  // torch::jit::script::Module get_tile_param, 
+  // torch::jit::script::Module preproc, 
   torch::jit::script::Module* nis_unet, 
   // torch::jit::script::Module interpolater,
   torch::jit::script::Module grad_2d_to_3d,
@@ -77,8 +78,8 @@ std::vector<torch::Tensor> gpu_process(
   */
   std::vector<torch::Tensor> unet_output = loop_unet(
     img_onechunk, 
-    &get_tile_param,
-    &preproc,
+    // &get_tile_param,
+    // &preproc,
     nis_unet,
     device
   );
@@ -157,8 +158,8 @@ int main(int argc, const char* argv[]) {
   int64_t chunk_depth = 30;
   float cellprob_threshold = 0.1;
 
-  torch::jit::script::Module get_tile_param;
-  torch::jit::script::Module preproc;
+  // torch::jit::script::Module get_tile_param;
+  // torch::jit::script::Module preproc;
   torch::jit::script::Module nis_unet;
   // torch::jit::script::Module postproc;
   torch::jit::script::Module grad_2d_to_3d;
@@ -166,8 +167,8 @@ int main(int argc, const char* argv[]) {
   torch::jit::script::Module gnn_message_passing;
   torch::jit::script::Module gnn_classifier;
   torch::jit::script::Module flow_3DtoSeed;
-  get_tile_param = torch::jit::load("/ram/USERS/ziquanw/Lightsheet_microscopy_image_3D_nuclei_instance_segmentation/downloads/resource/get_model_tileparam_cpu.pt");
-  preproc = torch::jit::load("/ram/USERS/ziquanw/Lightsheet_microscopy_image_3D_nuclei_instance_segmentation/downloads/resource/preproc_img1xLyxLx_"+std::string(argv[3])+".pt");
+  // get_tile_param = torch::jit::load("/ram/USERS/ziquanw/Lightsheet_microscopy_image_3D_nuclei_instance_segmentation/downloads/resource/get_model_tileparam_cpu.pt");
+  // preproc = torch::jit::load("/ram/USERS/ziquanw/Lightsheet_microscopy_image_3D_nuclei_instance_segmentation/downloads/resource/preproc_img1xLyxLx_"+std::string(argv[3])+".pt");
   nis_unet = torch::jit::load("/ram/USERS/ziquanw/Lightsheet_microscopy_image_3D_nuclei_instance_segmentation/downloads/resource/nis_unet_cpu.pt");
   grad_2d_to_3d = torch::jit::load("/ram/USERS/ziquanw/Lightsheet_microscopy_image_3D_nuclei_instance_segmentation/downloads/resource/grad_2Dto3D_"+std::string(argv[3])+".pt");
   // interpolater = torch::jit::load("/ram/USERS/ziquanw/Lightsheet_microscopy_image_3D_nuclei_instance_segmentation/downloads/resource/interpolate_ratio_1.6x1x1.pt");
@@ -208,8 +209,8 @@ int main(int argc, const char* argv[]) {
   // std::vector<DataSet> dsetlist = init_h5data(h5fn, whole_brain_shape);
   // File h5file = init_h5data(h5fn, whole_brain_shape);
   // init_h5data(h5fn, whole_brain_shape);
-  hsize_t old_instance_n = 0;
-  hsize_t old_contour_n = 0;
+  int64_t old_instance_n = 0;
+  // hsize_t old_contour_n = 0;
   hsize_t zmin = 0;
   torch::NoGradGuard no_grad;
   torch::Tensor first_mask;
@@ -227,8 +228,8 @@ int main(int argc, const char* argv[]) {
     0, 
     chunk_depth, 
     img_fns,
-    get_tile_param, 
-    preproc, 
+    // get_tile_param, 
+    // preproc, 
     &nis_unet, 
     // interpolater,
     grad_2d_to_3d,
@@ -258,8 +259,8 @@ int main(int argc, const char* argv[]) {
       i, 
       chunk_depth, 
       img_fns,
-      get_tile_param, 
-      preproc, 
+      // get_tile_param, 
+      // preproc, 
       &nis_unet, 
       // interpolater,
       grad_2d_to_3d,
@@ -283,10 +284,13 @@ int main(int argc, const char* argv[]) {
       print_with_time("whole_brain_shape: ");
       std::cout<<whole_brain_shape<<"\n";
       // nis_saver = std::async(std::launch::async, save_h5data, dsetlist, nis_outputs, old_instance_n, old_contour_n, zmin, zmax, whole_brain_shape);
-      last_first_masks = save_h5data(h5fn, nis_outputs, old_instance_n, old_contour_n, zmin, zmax, whole_brain_shape);
+      // last_first_masks = save_h5data(h5fn, nis_outputs, old_instance_n, old_contour_n, zmin, zmax, whole_brain_shape);
+      last_first_masks.clear();
+      last_first_masks.push_back(nis_outputs[0].index({-1, "..."}).detach().clone());
+      last_first_masks.push_back(nis_outputs[0].index({0, "..."}).detach().clone());
       first_mask = last_first_masks[1];
-      old_instance_n += nis_outputs[2].size(0);
-      old_contour_n += nis_outputs[1].size(0);
+      old_instance_n = nis_outputs[5].item<int64_t>();
+      // old_contour_n += nis_outputs[2].size(0);
       cur_has_nis = true;
     } else {
       last_first_masks.clear();
