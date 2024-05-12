@@ -154,16 +154,17 @@ def main(pair_tag, brain_tag, img_tags=[], P_tag='P4'):
     downsample_res = [25, 25, 25]
     seg_res = [2.5, 0.75, 0.75]
     # data_root = f"/cajal/Felix/Lightsheet/P4/{pair_tag}/output_{brain_tag}/registered/{brain_tag}_MOV_atlas_25.nii"
-    seg_root = f"/cajal/ACMUSERS/ziquanw/Lightsheet/results/{P_tag}/{pair_tag}/{brain_tag}"
+    seg_root = f"/cajal/ACMUSERS/ziquanw/Lightsheet/results/{P_tag}/{pair_tag}/{brain_tag}" # cajal/ACMUSERS
     stat_root = f"/cajal/ACMUSERS/ziquanw/Lightsheet/statistics/{P_tag}/{pair_tag}"
     save_root = f"/cajal/ACMUSERS/ziquanw/Lightsheet/renders/{P_tag}/{pair_tag}"
     os.makedirs(save_root, exist_ok=True)
     new_header, affine_m = init_nib_header()
-    seg_paths, sortks = listdir_sorted(seg_root, "NIScpp", ftail="seg.zip", sortkid=3)
+    ftail = 'seg_meta.zip'
+    seg_paths, sortks = listdir_sorted(seg_root, "NIScpp", ftail=ftail, sortkid=3)
     ## For visualization purpose
     dratio = [s/d for s, d in zip(seg_res, downsample_res)]
     # dratio = [r*2 for r in dratio]
-    sshape = torch.load(seg_paths[-1]).shape
+    sshape = torch.load(seg_paths[-1])#.shape
     sshape = list(sshape)
     sshape[0] = sshape[0] + sortks[-1]
     dshape = [0,0,0]
@@ -178,13 +179,13 @@ def main(pair_tag, brain_tag, img_tags=[], P_tag='P4'):
     print(datetime.now(), f"Saving total density {pair_tag} {brain_tag}, Max density {density_total.max()}")
     nib.save(nib.Nifti1Image(density_total.numpy().astype(np.float64), affine_m, header=new_header), f'{save_root}/NIS_density_{pair_tag}_{brain_tag}.nii')
     nib.save(nib.Nifti1Image(vol_avg.numpy().astype(np.float64), affine_m, header=new_header), f'{save_root}/NIS_volavg_{pair_tag}_{brain_tag}.nii')
-    if os.path.exists(f"{stat_root}/{brain_tag}_NIS_colocContrastCalib_label.zip"):
-        intensity_label_dict = torch.load(f"{stat_root}/{brain_tag}_NIS_colocContrastCalib_label.zip", map_location='cpu')
-        dr_tag = f"dr{dratio[0]}".replace('.', '')
-        nib.save(nib.Nifti1Image(density_total.numpy().astype(np.float64), affine_m, header=new_header), f'{save_root}/NIS_density_{dr_tag}_topro_{pair_tag}_{brain_tag}.nii')
-        for k in intensity_label_dict:
-            density_k, vol_avg = downsample(total_center[intensity_label_dict[k]], total_vol[intensity_label_dict[k]], dratio, dshape, device, skip_vol=True)
-            nib.save(nib.Nifti1Image(density_k.numpy().astype(np.float64), affine_m, header=new_header), f'{save_root}/NIS_density_{dr_tag}_{k}_{pair_tag}_{brain_tag}.nii')
+    # if os.path.exists(f"{stat_root}/{brain_tag}_NIS_colocContrastCalib_label.zip"):
+    #     intensity_label_dict = torch.load(f"{stat_root}/{brain_tag}_NIS_colocContrastCalib_label.zip", map_location='cpu')
+    #     dr_tag = f"dr{dratio[0]}".replace('.', '')
+    #     nib.save(nib.Nifti1Image(density_total.numpy().astype(np.float64), affine_m, header=new_header), f'{save_root}/NIS_density_{dr_tag}_topro_{pair_tag}_{brain_tag}.nii')
+    #     for k in intensity_label_dict:
+    #         density_k, vol_avg = downsample(total_center[intensity_label_dict[k]], total_vol[intensity_label_dict[k]], dratio, dshape, device, skip_vol=True)
+    #         nib.save(nib.Nifti1Image(density_k.numpy().astype(np.float64), affine_m, header=new_header), f'{save_root}/NIS_density_{dr_tag}_{k}_{pair_tag}_{brain_tag}.nii')
     
     # label_des = {'pn_mask':1, 'np_mask': 2, 'pp_mask': 3, 'nn_mask': 4}    
     # print(len(intensity_label_dict['pp_mask']), total_center.shape)
@@ -253,7 +254,7 @@ def downsample(center, vol, ratio, dshape, device, skip_vol=False):
     z = center[:, 0].clip(min=0, max=dshape[0]-0.9)
     y = center[:, 1].clip(min=0, max=dshape[1]-0.9)
     x = center[:, 2].clip(min=0, max=dshape[2]-0.9)
-    # print(center.shape)
+    # print(center.shape, z, x, y)
     loc = torch.arange(dshape[0]*dshape[1]*dshape[2]).view(dshape[0], dshape[1], dshape[2]).to(device) 
     loc = loc[(z.long(), y.long(), x.long())] # all nis location in the downsample space
     loc_count = loc.bincount() 
@@ -262,11 +263,21 @@ def downsample(center, vol, ratio, dshape, device, skip_vol=False):
     ## volume avg & local intensity
     vol_avg = None
     if not skip_vol:
-        vol_avg = torch.zeros(dshape[0]*dshape[1]*dshape[2], dtype=torch.float64).to(device)
-        for loci in tqdm(atlas_loc, desc="Collect NIS property in local cube"): 
-            where_loc = torch.where(loc==loci)[0]
-            vol_avg[loci] = vol[where_loc].mean()
-        vol_avg = vol_avg.view(dshape[0], dshape[1], dshape[2]).cpu()
+        loc_argsort = loc.argsort().cpu()
+        loc_splits = loc_count.cumsum(0).cpu()
+        loc_vol = torch.tensor_split(vol[loc_argsort], loc_splits)
+        assert len(loc_vol[-1]) == 0
+        loc_vol = loc_vol[:-1]
+        loc_vol = torch.nn.utils.rnn.pad_sequence(loc_vol, batch_first=True, padding_value=-1)
+        loc_fg = loc_vol!=-1
+        loc_num = loc_fg.sum(1)
+        loc_vol[loc_vol==-1] = 0
+        vol_avg = torch.zeros(dshape[0]*dshape[1]*dshape[2]).float()#.to(device)
+        vol_avg[atlas_loc] = (loc_vol.sum(1) / loc_num).cpu().float()
+        # for loci in tqdm(atlas_loc, desc="Collect NIS property in local cube"): 
+        #     where_loc = torch.where(loc==loci)[0]
+        #     vol_avg[loci] = vol[where_loc].mean()
+        vol_avg = vol_avg.view(dshape[0], dshape[1], dshape[2])#.cpu()
     ## density map
     density = torch.zeros(dshape[0]*dshape[1]*dshape[2], dtype=torch.float64).to(device)
     density[atlas_loc] = loc_count.double() #/ center.shape[0]
@@ -337,6 +348,9 @@ if __name__ == '__main__':
     # main(pair_tag, brain_tag, img_tags)
 
 
+    pair_tag = 'pair5'
+    brain_tag = 'L57D855P4restitchedLocalNorm'
+    main(pair_tag, brain_tag, img_tags)
     # pair_tag = 'pair5'
     # brain_tag = 'L57D855P4'
     # main(pair_tag, brain_tag, img_tags)
@@ -385,7 +399,7 @@ if __name__ == '__main__':
     # pair_tag = 'pair10'
     # brain_tag = 'L64D804P3'
     # main(pair_tag, brain_tag, img_tags)
-    # 
+    
     # pair_tag = 'pair10'
     # brain_tag = 'L64D804P9'
     # main(pair_tag, brain_tag, img_tags)
@@ -411,6 +425,12 @@ if __name__ == '__main__':
     # brain_tag = 'L73D766P7'
     # main(pair_tag, brain_tag, img_tags)
 
+    # pair_tag = 'pair16'
+    # brain_tag = 'L74D769P4restitchedLocalNorm'
+    # main(pair_tag, brain_tag, img_tags)
+    pair_tag = 'pair16'
+    brain_tag = 'L74D769P8restitchedLocalNorm'
+    main(pair_tag, brain_tag, img_tags)
     # pair_tag = 'pair16'
     # brain_tag = 'L74D769P4'
     # main(pair_tag, brain_tag, img_tags)
@@ -482,7 +502,7 @@ if __name__ == '__main__':
     # brain_tag = 'L77D764P8'
     # main(pair_tag, brain_tag, img_tags)
     
-    pair_tag = 'female'
-    brain_tag = 'L106P3'
-    P_tag = 'P14'
-    main(pair_tag, brain_tag, img_tags, P_tag)
+    # pair_tag = 'female'
+    # brain_tag = 'L106P3LocalNorm'
+    # P_tag = 'P14'
+    # main(pair_tag, brain_tag, img_tags, P_tag)

@@ -1,7 +1,8 @@
 #include <torch/script.h> // One-stop header.
+#include <torch/nn/utils/rnn.h>
 #include "torchist.h"
 #include <future>
-
+#include "utils.h"
 
 torch::Tensor flow_2Dto3D(
     torch::Tensor flow_2d, 
