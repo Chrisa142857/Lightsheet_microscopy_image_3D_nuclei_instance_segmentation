@@ -3,6 +3,50 @@
 namespace fs = std::filesystem;
 namespace F = torch::nn::functional;
 
+std::string getFilename(const std::string& path) {
+    // Find the last occurrence of the path separator '/'
+    size_t pos = path.find_last_of("/\\");
+    if (pos == std::string::npos) {
+        return path; // No separator found, the entire path is the filename
+    }
+    return path.substr(pos + 1); // Return the substring after the last separator
+}
+
+
+std::string replaceWithFormattedNumbers(const std::string& x, int z1, int z2, std::string extra_str) {
+    std::ostringstream ss1, ss2;
+    ss1 << std::setw(4) << std::setfill('0') << z1;
+    ss2 << std::setw(4) << std::setfill('0') << z2;
+    
+    std::string str_z1 = ss1.str();
+    std::string str_z2 = ss2.str();
+    str_z1 = extra_str+str_z1;
+    str_z2 = extra_str+str_z2;
+
+    std::string y = x;
+    size_t pos = 0;
+    while ((pos = y.find(str_z1, pos)) != std::string::npos) {
+        y.replace(pos, str_z1.length(), str_z2);
+        pos += str_z2.length();
+    }
+    return y;
+}
+
+int split_then_int(const std::string& x, int loc) {
+    // Split the string by underscore
+    std::vector<std::string> items;
+    std::stringstream ss(x);
+    std::string item;
+
+    while (std::getline(ss, item, '_')) {
+        items.push_back(item);
+    }
+
+    // Get the second item and convert it to an integer
+    std::string y = items[loc];
+    return std::stoi(y);
+}
+
 std::set<std::string> listdir_sorted(std::string path){
     std::set<std::string> sorted_by_name;
     for (auto &entry : fs::directory_iterator(path)){

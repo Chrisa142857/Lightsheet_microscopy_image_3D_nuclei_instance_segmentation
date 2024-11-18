@@ -8,6 +8,7 @@
 #include <opencv2/core.hpp>
 
 torch::Tensor load_tif_as_tensor(std::string path);
+// void save_3dtensor_as_tif(torch::Tensor mat, string path);
 // torch::Tensor
 // void load_nii_as_tensor(std::string path);
 // std::vector<cv::Mat> opencv_read_nii(std::string path);

@@ -175,7 +175,10 @@ std::vector<torch::Tensor> flow_3DtoNIS(
 
     torch::Tensor expand = torch::nonzero(torch::ones({3, 3, 3})).transpose(0, 1);
     std::vector<std::vector<torch::Tensor>> pix_copy(pix.size(0));
-    
+    std::vector<torch::Tensor> newpix(expand.size(0));
+    std::vector<torch::Tensor> iin(expand.size(0));
+    torch::Tensor igood;
+    torch::Tensor iin_all;
     for (int64_t iter = 0; iter < iter_num; ++iter) {
         print_with_time("Extend iter ");
         std::cout << iter+1 << ", "; 
@@ -183,18 +186,18 @@ std::vector<torch::Tensor> flow_3DtoNIS(
             if (iter == 0) {
                 pix_copy[k] = pix[k].unbind(0);
             }
-            std::vector<torch::Tensor> newpix(expand.size(0));
-            std::vector<torch::Tensor> iin(expand.size(0));
+            newpix.clear();
+            iin.clear();
             
             for (int64_t i = 0; i < expand.size(0); ++i) {
                 // Extend
-                newpix[i] = expand[i].unsqueeze(1) + pix_copy[k][i].unsqueeze(0) - 1;
+                newpix.push_back(expand[i].unsqueeze(1) + pix_copy[k][i].unsqueeze(0) - 1);
                 newpix[i] = newpix[i].flatten();
                 // Clip coordinates
-                iin[i] = torch::logical_and(newpix[i] >= 0, newpix[i] < shape[i]);
+                iin.push_back(torch::logical_and(newpix[i] >= 0, newpix[i] < shape[i]));
             }
 
-            torch::Tensor iin_all = torch::stack(iin).all(0);
+            iin_all = torch::stack(iin).all(0);
             for (int64_t i = 0; i < expand.size(0); ++i) {
                 newpix[i] = newpix[i].index({iin_all});
             }
@@ -202,7 +205,7 @@ std::vector<torch::Tensor> flow_3DtoNIS(
                 // Get unique coordinates
                 newpix = expand_pt_unique(newpix, iter+1);
             }
-            torch::Tensor igood = h.index({newpix[0], newpix[1], newpix[2]})>2;
+            igood = h.index({newpix[0], newpix[1], newpix[2]})>2;
             for (int64_t i = 0; i < expand.size(0); ++i) {
                 pix_copy[k][i] = newpix[i].index({igood});
             }

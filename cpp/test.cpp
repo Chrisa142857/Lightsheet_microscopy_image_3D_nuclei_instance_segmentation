@@ -41,6 +41,7 @@ std::vector<torch::Tensor> nis_obtain(torch::jit::script::Module flow_3DtoSeed, 
   if (nis_outputs.size()>1) {
     std::vector<int64_t> seg_size = {nis_outputs[0].size(0), nis_outputs[0].size(1), nis_outputs[0].size(2)};
     save_tensor(torch::from_blob(seg_size.data(), seg_size.size(), torch::kLong), savefn+"_seg_meta.zip");
+    save_tensor(nis_outputs[0].to(torch::kBool), savefn+"_binary_mask.zip");
     save_tensor(nis_outputs[1], savefn+"_instance_center.zip");
     save_tensor(nis_outputs[2], savefn+"_instance_coordinate.zip");
     save_tensor(nis_outputs[3], savefn+"_instance_label.zip");
@@ -58,11 +59,13 @@ std::vector<torch::Tensor> gpu_process(
   // torch::jit::script::Module get_tile_param, 
   // torch::jit::script::Module preproc, 
   torch::jit::script::Module* nis_unet, 
+  bool do_fg_filter,
   // torch::jit::script::Module interpolater,
   torch::jit::script::Module grad_2d_to_3d,
   torch::Tensor pre_final_yx_flow,
   torch::Tensor pre_last_second,
-  std::string device
+  std::string device,
+  std::vector<std::string> bg_img_fns = {}
 ) {
   namespace F = torch::nn::functional;
   print_with_time("Chunk has slice "+std::to_string(i)+"~"+std::to_string(i+chunk_depth)+"\n");
@@ -76,13 +79,30 @@ std::vector<torch::Tensor> gpu_process(
   /*
   Loop slices of one chunk into Unet (GPU & IO)
   */
-  std::vector<torch::Tensor> unet_output = loop_unet(
-    img_onechunk, 
-    // &get_tile_param,
-    // &preproc,
-    nis_unet,
-    device
-  );
+  std::vector<torch::Tensor> unet_output;
+  if (bg_img_fns.size() != 4){
+    unet_output = loop_unet(
+      img_onechunk, 
+      // &get_tile_param,
+      // &preproc,
+      nis_unet,
+      do_fg_filter,
+      device
+    );
+  } else {
+    unet_output = loop_unet(
+      img_onechunk, 
+      // &get_tile_param,
+      // &preproc,
+      nis_unet,
+      do_fg_filter,
+      device,
+      bg_img_fns[0],
+      bg_img_fns[1],
+      bg_img_fns[2],
+      bg_img_fns[3]
+    );
+  }
   torch::Tensor flow2d = unet_output[0];
   torch::Tensor first_img = unet_output[1];
   torch::Tensor last_img = unet_output[2];
@@ -155,7 +175,7 @@ int main(int argc, const char* argv[]) {
     << TORCH_VERSION_PATCH << std::endl;
   // std::string device = "cuda:0";
   std::string device(argv[3]);
-  int64_t chunk_depth = 30;
+  int64_t chunk_depth = 600;
   float cellprob_threshold = 0.1;
 
   // torch::jit::script::Module get_tile_param;
@@ -181,6 +201,14 @@ int main(int argc, const char* argv[]) {
   std::string brain_tag(argv[2]);
   std::string data_root(argv[4]);
   std::string save_root(argv[5]);
+  bool do_fg_filter = std::string(argv[6])=="1";
+  std::vector<std::string> bg_img_fns = {};
+  if (argc > 6){
+    bg_img_fns.push_back(argv[7]);
+    bg_img_fns.push_back(argv[8]);
+    bg_img_fns.push_back(argv[9]);
+    bg_img_fns.push_back(argv[10]);
+  }
   // std::string img_dir = "/"+data_root+"/Felix/Lightsheet/P4/"+pair_tag+"/output_"+brain_tag+"/stitched/";
   // std::string img_dir = data_root+pair_tag+"/output_"+brain_tag+"/stitched/";
   std::string img_dir = data_root;
@@ -231,11 +259,12 @@ int main(int argc, const char* argv[]) {
     // get_tile_param, 
     // preproc, 
     &nis_unet, 
+    do_fg_filter,
     // interpolater,
     grad_2d_to_3d,
     pre_final_yx_flow,
     pre_last_second,
-    device
+    device, bg_img_fns
   );
   // torch::Tensor flow3d = gpu_outputs[0];
   pre_final_yx_flow = gpu_outputs[1];
@@ -246,28 +275,16 @@ int main(int argc, const char* argv[]) {
   torch::Tensor last_flow = gpu_outputs[6];
   // torch::Tensor masks;
   std::vector<torch::Tensor> last_first_masks;
+  hsize_t zmax;
   bool pre_has_nis;
   bool cur_has_nis;
   for (int64_t i = chunk_depth; i < img_fns.size(); i+=chunk_depth) {
     /*
     Follow the 3D flow to obtain NIS (CPU)
     */
-    hsize_t zmax = zmin + gpu_outputs[0].size(1);
+    zmax = zmin + gpu_outputs[0].size(1);
     nis_obtainer = std::async(std::launch::async, nis_obtain, flow_3DtoSeed, gpu_outputs[0], cellprob_threshold, old_instance_n, h5fn+"_zmin"+std::to_string(zmin));
     gpu_outputs.clear();
-    gpu_outputs = gpu_process(
-      i, 
-      chunk_depth, 
-      img_fns,
-      // get_tile_param, 
-      // preproc, 
-      &nis_unet, 
-      // interpolater,
-      grad_2d_to_3d,
-      pre_final_yx_flow,
-      pre_last_second,
-      device
-    );
     if (i > chunk_depth & last_first_masks.size() > 0){
       pre_last_mask = last_first_masks[0];
       pre_has_nis = true;
@@ -317,6 +334,20 @@ int main(int argc, const char* argv[]) {
       );
     }
 
+    gpu_outputs = gpu_process(
+      i, 
+      chunk_depth, 
+      img_fns,
+      // get_tile_param, 
+      // preproc, 
+      &nis_unet, 
+      do_fg_filter,
+      // interpolater,
+      grad_2d_to_3d,
+      pre_final_yx_flow,
+      pre_last_second,
+      device, bg_img_fns
+    );
     pre_last_img = last_img;
     pre_last_flow = last_flow;
     // flow3d = gpu_outputs[0];
@@ -331,5 +362,45 @@ int main(int argc, const char* argv[]) {
 
   nis_obtainer = std::async(std::launch::async, nis_obtain, flow_3DtoSeed, gpu_outputs[0], cellprob_threshold, old_instance_n, h5fn+"_zmin"+std::to_string(zmin));
   nis_outputs = nis_obtainer.get();
+  if (last_first_masks.size() > 0){
+    pre_last_mask = last_first_masks[0];
+    pre_has_nis = true;
+  } else {
+    pre_has_nis = false;
+  }
+  /*
+  Get last and first slice of output
+  */
+  if (nis_outputs.size() > 1){
+    print_with_time("zmin: ");
+    std::cout<<zmin<<", zmax: "<<zmax<<"\n";
+    print_with_time("whole_brain_shape: ");
+    std::cout<<whole_brain_shape<<"\n";
+    first_mask = nis_outputs[0].index({0, "..."}).detach().clone();
+    cur_has_nis = true;
+  } else {
+    cur_has_nis = false;
+  }
+  nis_outputs.clear();
+  // }
+  /*
+  Run GNN to stitch the gap (GPU) 
+  */
+  if (pre_has_nis & cur_has_nis){
+    remap_all = stitch_process(
+      remap_all,
+      &gnn_message_passing, 
+      &gnn_classifier, 
+      pre_last_img,
+      pre_last_mask,
+      pre_last_flow,
+      first_img,
+      first_mask,
+      first_flow,
+      remapfn,
+      device
+    );
+  }
+
   std::cout << "ok\n";
 }

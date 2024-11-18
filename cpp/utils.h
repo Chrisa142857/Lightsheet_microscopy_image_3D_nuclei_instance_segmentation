@@ -5,8 +5,12 @@
 #include <iostream>
 #include <filesystem>
 #include <set>
+#include <sstream>
+#include <iomanip>
 
-
+std::string replaceWithFormattedNumbers(const std::string& x, int z1, int z2, std::string extra_str);
+std::string getFilename(const std::string& path);
+int split_then_int(const std::string& x, int loc);
 std::vector<torch::Tensor> pad_image(torch::Tensor img0);
 std::set<std::string> listdir_sorted(std::string path);
 void print_size(torch::Tensor tensor);

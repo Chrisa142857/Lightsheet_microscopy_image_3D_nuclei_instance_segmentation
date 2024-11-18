@@ -21,3 +21,13 @@ torch::Tensor load_tif_as_tensor(string path) {
     return tensor_image;
 }
 
+
+// void save_3dtensor_as_tif(torch::Tensor mat, string path) {
+//     int width = mat.sizes()[1];
+//     int height = mat.sizes()[2];
+//     for (int i=0; i<mat.sizes()[0]; i++){
+//         torch::Tensor tensor = mat[i];
+//         Mat cvimage(Size{ height, width }, CV_8UC3, mat[i].data_ptr<uchar>());
+//         imwrite(path, cvimage);
+//     }
+// }

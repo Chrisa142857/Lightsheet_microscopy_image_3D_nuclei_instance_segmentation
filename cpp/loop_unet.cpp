@@ -6,18 +6,26 @@ std::vector<torch::Tensor> loop_unet(
     // torch::jit::script::Module* get_tile_param,
     // torch::jit::script::Module* preproc,
     torch::jit::script::Module* nis_unet,
-    std::string device
+    bool do_fg_filter,
+    std::string device,
+    std::string lefttop_fn,
+    std::string righttop_fn,
+    std::string leftbottom_fn,
+    std::string rightbottom_fn
   ) {
     torch::NoGradGuard no_grad;
     namespace F = torch::nn::functional;
+    int64_t bsize = 224;
     /*
       Loop Unet for one chunk
     */
     // preproc->to(device);
     // get_tile_param->to(device);
     std::vector<torch::Tensor> flow2d_list;
-    int64_t batch_size = 600;
+    int64_t batch_size = 400;
     int64_t file_loaded = 0;
+    
+    torch::Tensor lefttop_img, righttop_img, leftbottom_img, rightbottom_img;
     // Loop the list of files
     torch::Tensor img;
     torch::Tensor first_img;
@@ -26,6 +34,45 @@ std::vector<torch::Tensor> loop_unet(
     for (int64_t i=0; i<img_fns.size(); i++) {
         std::string img_path = img_fns[i];
         print_with_time("Processing Image " + img_path + " \n");
+        // Load corner in the slice to set fg threshold
+        float given_fg_thres, fg_thres;
+        if (lefttop_fn != "") {
+            std::string cur_lefttopfn = lefttop_fn;
+            std::string cur_righttopfn = righttop_fn;
+            std::string cur_leftbottomfn = leftbottom_fn;
+            std::string cur_rightbottomfn = rightbottom_fn;
+            cur_lefttopfn = replaceWithFormattedNumbers(cur_lefttopfn, split_then_int(getFilename(img_path), 1), split_then_int(getFilename(lefttop_fn), 1), "_");
+            cur_lefttopfn = replaceWithFormattedNumbers(cur_lefttopfn, split_then_int(getFilename(img_path), 1), split_then_int(getFilename(lefttop_fn), 1), "Z");
+            cur_righttopfn = replaceWithFormattedNumbers(cur_righttopfn, split_then_int(getFilename(img_path), 1), split_then_int(getFilename(righttop_fn), 1), "_");
+            cur_righttopfn = replaceWithFormattedNumbers(cur_righttopfn, split_then_int(getFilename(img_path), 1), split_then_int(getFilename(righttop_fn), 1), "Z");
+            cur_leftbottomfn = replaceWithFormattedNumbers(cur_leftbottomfn, split_then_int(getFilename(img_path), 1), split_then_int(getFilename(leftbottom_fn), 1), "_");
+            cur_leftbottomfn = replaceWithFormattedNumbers(cur_leftbottomfn, split_then_int(getFilename(img_path), 1), split_then_int(getFilename(leftbottom_fn), 1), "Z");
+            cur_rightbottomfn = replaceWithFormattedNumbers(cur_rightbottomfn, split_then_int(getFilename(img_path), 1), split_then_int(getFilename(rightbottom_fn), 1), "_");
+            cur_rightbottomfn = replaceWithFormattedNumbers(cur_rightbottomfn, split_then_int(getFilename(img_path), 1), split_then_int(getFilename(rightbottom_fn), 1), "Z");
+            lefttop_img = load_tif_as_tensor(cur_lefttopfn).to(device);
+            righttop_img = load_tif_as_tensor(cur_righttopfn).to(device);
+            leftbottom_img = load_tif_as_tensor(cur_leftbottomfn).to(device);
+            rightbottom_img = load_tif_as_tensor(cur_rightbottomfn).to(device);
+            given_fg_thres = std::min({
+                lefttop_img.slice(1, 0, bsize).slice(2, 0, bsize).max().item<float>(),
+                lefttop_img.slice(1, -bsize, -1).slice(2, 0, bsize).max().item<float>(),
+                lefttop_img.slice(1, -bsize, -1).slice(2, -bsize, -1).max().item<float>(),
+                lefttop_img.slice(1, 0, bsize).slice(2, -bsize, -1).max().item<float>(),
+                righttop_img.slice(1, 0, bsize).slice(2, 0, bsize).max().item<float>(),
+                righttop_img.slice(1, -bsize, -1).slice(2, 0, bsize).max().item<float>(),
+                righttop_img.slice(1, -bsize, -1).slice(2, -bsize, -1).max().item<float>(),
+                righttop_img.slice(1, 0, bsize).slice(2, -bsize, -1).max().item<float>(),
+                leftbottom_img.slice(1, 0, bsize).slice(2, 0, bsize).max().item<float>(),
+                leftbottom_img.slice(1, -bsize, -1).slice(2, 0, bsize).max().item<float>(),
+                leftbottom_img.slice(1, -bsize, -1).slice(2, -bsize, -1).max().item<float>(),
+                leftbottom_img.slice(1, 0, bsize).slice(2, -bsize, -1).max().item<float>(),
+                rightbottom_img.slice(1, 0, bsize).slice(2, 0, bsize).max().item<float>(),
+                rightbottom_img.slice(1, -bsize, -1).slice(2, 0, bsize).max().item<float>(),
+                rightbottom_img.slice(1, -bsize, -1).slice(2, -bsize, -1).max().item<float>(),
+                rightbottom_img.slice(1, 0, bsize).slice(2, -bsize, -1).max().item<float>(),
+            });
+        }
+
         // Load data in background    
         if (file_loaded == 0) {
             img = load_tif_as_tensor(img_path).to(device);
@@ -71,7 +118,6 @@ std::vector<torch::Tensor> loop_unet(
         torch::Tensor Ly = torch::tensor(img_shape[1]);
         torch::Tensor Lx = torch::tensor(img_shape[2]);
         // torch::Tensor bsize = torch::tensor(224);
-        int64_t bsize = 224;
         torch::Tensor overlap = torch::tensor(0.1);
         // inputs.clear();
         std::vector<torch::Tensor> tile_param = tile_image(img, bsize, overlap);
@@ -89,17 +135,22 @@ std::vector<torch::Tensor> loop_unet(
         std::vector<int64_t> irange;
         int64_t j;
         int64_t bi = 0;
-        float fg_thres =
-            (img.slice(1, 0, bsize).slice(2, 0, bsize).max().item<float>() +
-            img.slice(1, -bsize, -1).slice(2, 0, bsize).max().item<float>() +
-            img.slice(1, -bsize, -1).slice(2, -bsize, -1).max().item<float>() +
-            img.slice(1, 0, bsize).slice(2, -bsize, -1).max().item<float>()) / 4;
+        if (lefttop_fn != "") {
+            fg_thres = given_fg_thres;
+        }
+        else if (do_fg_filter) {
+            fg_thres = std::min({
+                img.slice(1, 0, bsize).slice(2, 0, bsize).max().item<float>(),
+                img.slice(1, -bsize, -1).slice(2, 0, bsize).max().item<float>(),
+                img.slice(1, -bsize, -1).slice(2, -bsize, -1).max().item<float>(),
+                img.slice(1, 0, bsize).slice(2, -bsize, -1).max().item<float>()});
+        }
         for (j = 0; j < tile_ysub.size(0); j++) {
             auto tile = img
                 .slice(1, tile_ysub[j][0].item<int64_t>(), tile_ysub[j][1].item<int64_t>())
                 .slice(2, tile_xsub[j][0].item<int64_t>(), tile_xsub[j][1].item<int64_t>());
             // if (tile.max().item<float>() > fg_thres){
-            if (std::get<0>(tile.max(-1)).mean().item<float>() > fg_thres) {
+            if (std::get<0>(tile.max(-1)).mean().item<float>() > fg_thres || !do_fg_filter) {
                 unet_inputs.push_back(tile);
                 irange.push_back(j);
             }

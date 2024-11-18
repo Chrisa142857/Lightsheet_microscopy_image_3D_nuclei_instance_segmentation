@@ -628,7 +628,7 @@ class CellposeModel(UnetModel):
         tic = time.time()
         shape = x.shape if not isinstance(x[0], str) else []
         nimg = shape[0] if not isinstance(x[0], str) else len(x)
-        
+        zratio = 1# 4/2.5
         bd, tr = None, None
         if do_3D :
             img = np.asarray(x)
@@ -647,13 +647,13 @@ class CellposeModel(UnetModel):
                 YX_flow = yf[0][:2]
                 inside = cellprob > cellprob_threshold
                 print(YX_flow.shape)
-                YX_flow = torch.nn.functional.interpolate(torch.from_numpy(YX_flow).unsqueeze(0), scale_factor=(4/2.5, 1, 1), mode='nearest-exact').squeeze().numpy()
-                inside = torch.nn.functional.interpolate(torch.from_numpy(inside).unsqueeze(0).unsqueeze(0) * 1.0, scale_factor=(4/2.5, 1, 1), mode='nearest-exact').squeeze().numpy() > 0
+                YX_flow = torch.nn.functional.interpolate(torch.from_numpy(YX_flow).unsqueeze(0), scale_factor=(zratio, 1, 1), mode='nearest-exact').squeeze().numpy()
+                inside = torch.nn.functional.interpolate(torch.from_numpy(inside).unsqueeze(0).unsqueeze(0) * 1.0, scale_factor=(zratio, 1, 1), mode='nearest-exact').squeeze().numpy() > 0
                 print(YX_flow.shape)
                 grad_Z = simulate_gradz(YX_flow.shape[1], YX_flow, inside)
                 dP = np.stack((grad_Z, YX_flow[0], YX_flow[1]), axis=0) # (dZ, dY, dX)
                 # print(dP.shape)
-                # dP = torch.nn.functional.interpolate(torch.from_numpy(dP).unsqueeze(0), scale_factor=(4/2.5, 1, 1), mode='nearest-exact').squeeze().numpy()
+                # dP = torch.nn.functional.interpolate(torch.from_numpy(dP).unsqueeze(0), scale_factor=(zratio, 1, 1), mode='nearest-exact').squeeze().numpy()
                 # print(dP.shape)
                 # dP = np.stack((grad_Z, yf[0][0], yf[0][1]), axis=0) # (dZ, dY, dX)
                 # dP = simulate_gradz(YX_flow.shape[1], YX_flow, inside)
