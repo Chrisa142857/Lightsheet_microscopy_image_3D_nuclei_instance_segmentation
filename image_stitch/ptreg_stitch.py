@@ -37,23 +37,23 @@ def main():
     # for stitch_tile_ij, stitch_slice_ranges, ptag, btag in zip(stitch_tile_ij_lst, stitch_slice_ranges_lst, ptags, btags):
     #     stitch_by_ptreg(stitch_tile_ij, stitch_slice_ranges, ptag, btag)
 
-    stitch_tile_ij_lst = [
-        [[i,j] for i in range(4) for j in range(5) if i!=0 or j!=0],
-    ]
+    # stitch_tile_ij_lst = [
+    #     [[i,j] for i in range(4) for j in range(5) if i!=0 or j!=0],
+    # ]
     # stitch_slice_ranges_lst = [
     #     [[0.7, 1] for _ in range(len(stitch_tile_ij_lst[0]))],
     # ]
-    stitch_slice_ranges_lst = [
-        [[0, 1] for _ in range(len(stitch_tile_ij_lst[0]))],
-    ]
-    ptags = [
-        'pair5',
-    ]
-    btags = [
-        '220423_L57D855P5_topro_ctip2_brn2_4x_0_108na_50sw_11hdf_4z_15ov_09-02-27'
-    ]
-    for stitch_tile_ij, stitch_slice_ranges, ptag, btag in zip(stitch_tile_ij_lst, stitch_slice_ranges_lst, ptags, btags):
-        stitch_by_ptreg(stitch_tile_ij, stitch_slice_ranges, ptag, btag)
+    # stitch_slice_ranges_lst = [
+    #     [[0, 1] for _ in range(len(stitch_tile_ij_lst[0]))],
+    # ]
+    # ptags = [
+    #     'pair5',
+    # ]
+    # btags = [
+    #     '220423_L57D855P5_topro_ctip2_brn2_4x_0_108na_50sw_11hdf_4z_15ov_09-02-27'
+    # ]
+    # for stitch_tile_ij, stitch_slice_ranges, ptag, btag in zip(stitch_tile_ij_lst, stitch_slice_ranges_lst, ptags, btags):
+    #     stitch_by_ptreg(stitch_tile_ij, stitch_slice_ranges, ptag, btag)
 
     # ptags = [
     #     'pair8',
@@ -63,6 +63,31 @@ def main():
     # ]
     # for stitch_tile_ij, stitch_slice_ranges, ptag, btag in zip(stitch_tile_ij_lst, stitch_slice_ranges_lst, ptags, btags):
     #     stitch_by_ptreg(stitch_tile_ij, stitch_slice_ranges, ptag, btag)
+
+
+    stitch_tile_ij_lst = [
+        [[2,4], [2,0], [1,0]],
+        [[3,4], [0,1]],
+        [[0,1], [0,2], [0,3], [0,4]]
+    ]
+    stitch_slice_ranges_lst = [
+        [[0.7,1], [0,0.3], [0.5,1]],
+        [[0,1], [0.7,1]],
+        [[0,1], [0,1], [0,1], [0,1]],
+    ]
+    ptags = [
+        'pair13',
+        'pair14',
+        'pair18'
+    ]
+    btags = [
+        '220827_L69D764P6_OUT_topro_brn2_ctip2_4x_11hdf_0_108na_50sw_4z_20ov_16-47-13',
+        '220722_L73D766P5_OUT_topro_brn2_ctip2_4x_50sw_0_108na_11hdf_4z_20ov_16-49-30',
+        '220809_L77D764P8_OUT_topro_ctip2_brn2_4x_11hdf_50sw_0_108na_4z_20ov_09-52-21',
+    ]
+    for stitch_tile_ij, stitch_slice_ranges, ptag, btag in zip(stitch_tile_ij_lst, stitch_slice_ranges_lst, ptags, btags):
+        stitch_by_ptreg(stitch_tile_ij, stitch_slice_ranges, ptag, btag)
+
 
 
 def stitch_by_ptreg(stitch_tile_ij, stitch_slice_ranges,
