@@ -11,13 +11,28 @@ OVERLAP_R = 0.2
 zratio = 2.5/4
 
 def main():
-    device = 'cuda:1'
-    ptag='pair5'
-    # btag='220423_L57D855P5_topro_ctip2_brn2_4x_0_108na_50sw_11hdf_4z_15ov_09-02-27'
-    btag='220422_L57D855P4_topro_ctip2_brn2_4x_0_108na_50sw_11hdf_4z_15ov_16-54-32'
-    print("=== whole_brain_map ", ptag, btag.split("_")[1], "===")
+    device = 'cuda:3'
+    # ptag='pair5'
+    # # btag='220423_L57D855P5_topro_ctip2_brn2_4x_0_108na_50sw_11hdf_4z_15ov_09-02-27'
+    # btag='220422_L57D855P4_topro_ctip2_brn2_4x_0_108na_50sw_11hdf_4z_15ov_16-54-32'
+    # print("=== whole_brain_map ", ptag, btag.split("_")[1], "===")
+    # # remove_doubled_cell(ptag, btag, device)
+    # whole_brain_map(ptag, btag, device)
+    # ptag = 'pair13'
+    # btag = '220827_L69D764P6_OUT_topro_brn2_ctip2_4x_11hdf_0_108na_50sw_4z_20ov_16-47-13'
+    # print("=== whole_brain_map ", ptag, btag.split("_")[1], "===")
     # remove_doubled_cell(ptag, btag, device)
+    # whole_brain_map(ptag, btag, device)
+    ptag = 'pair14'
+    btag = '220722_L73D766P5_OUT_topro_brn2_ctip2_4x_50sw_0_108na_11hdf_4z_20ov_16-49-30'
+    print("=== whole_brain_map ", ptag, btag.split("_")[1], "===")
+    remove_doubled_cell(ptag, btag, device)
     whole_brain_map(ptag, btag, device)
+    # ptag = 'pair18'
+    # btag = '220809_L77D764P8_OUT_topro_ctip2_brn2_4x_11hdf_50sw_0_108na_4z_20ov_09-52-21'
+    # print("=== whole_brain_map ", ptag, btag.split("_")[1], "===")
+    # remove_doubled_cell(ptag, btag, device)
+    # whole_brain_map(ptag, btag, device)
     exit()
     # whole_brain_map(ptag='pair16', btag='220805_L74D769P4_OUT_topro_ctip2_brn2_4x_11hdf_50sw_0_108na_4z_20ov_15-51-36')
     # exit()
@@ -779,48 +794,48 @@ def whole_brain_map(ptag, btag, device='cuda:3'):
     else:
         rm_label = {}
 
-    if os.path.exists(f'{save_path}/NIS_tranform/{btag.split("_")[1]}_tform_manual.json'):
-        tform_stack_manual = json.load(open(f'{save_path}/NIS_tranform/{btag.split("_")[1]}_tform_manual.json', 'r', encoding='utf-8'))
-        print(datetime.now(), "Loaded tform of Imaris stitcher")
+    # if os.path.exists(f'{save_path}/NIS_tranform/{btag.split("_")[1]}_tform_manual.json'):
+    #     tform_stack_manual = json.load(open(f'{save_path}/NIS_tranform/{btag.split("_")[1]}_tform_manual.json', 'r', encoding='utf-8'))
+    #     print(datetime.now(), "Loaded tform of Imaris stitcher")
+    # else:
+    #     tform_stack_manual = None
+    tform_stack_coarse = json.load(open(f'{save_path}/NIS_tranform/{btag.split("_")[1]}_tform_coarse.json', 'r', encoding='utf-8'))
+    tform_stack_refine = json.load(open(f'{save_path}/NIS_tranform/{btag.split("_")[1]}_tform_refine.json', 'r', encoding='utf-8'))
+    print(len(tform_stack_refine))
+    if os.path.exists(f'{save_path}/NIS_tranform/{btag.split("_")[1]}_tform_refine_ptreg.json'):
+        tform_stack_ptreg = json.load(open(f'{save_path}/NIS_tranform/{btag.split("_")[1]}_tform_refine_ptreg.json', 'r', encoding='utf-8'))
+        print(datetime.now(), "Loaded tform of coarse, refine and pt-reg", len(tform_stack_ptreg), [tform_stack_ptreg[zi].keys() for zi in range(len(tform_stack_ptreg)) if len(tform_stack_ptreg[zi].keys()) > 0][-1])
     else:
-        tform_stack_manual = None
-        tform_stack_coarse = json.load(open(f'{save_path}/NIS_tranform/{btag.split("_")[1]}_tform_coarse.json', 'r', encoding='utf-8'))
-        tform_stack_refine = json.load(open(f'{save_path}/NIS_tranform/{btag.split("_")[1]}_tform_refine.json', 'r', encoding='utf-8'))
-        print(len(tform_stack_refine))
-        if os.path.exists(f'{save_path}/NIS_tranform/{btag.split("_")[1]}_tform_refine_ptreg.json'):
-            tform_stack_ptreg = json.load(open(f'{save_path}/NIS_tranform/{btag.split("_")[1]}_tform_refine_ptreg.json', 'r', encoding='utf-8'))
-            print(datetime.now(), "Loaded tform of coarse, refine and pt-reg", len(tform_stack_ptreg), [tform_stack_ptreg[zi].keys() for zi in range(len(tform_stack_ptreg)) if len(tform_stack_ptreg[zi].keys()) > 0][-1])
-        else:
-            tform_stack_ptreg = None
-            print(datetime.now(), "Loaded tform of coarse, refine")
+        tform_stack_ptreg = None
+        print(datetime.now(), "Loaded tform of coarse, refine")
 
     
-    if tform_stack_manual is not None:
-        tformed_tile_lt_loc_refined = {zi: copy.deepcopy(tile_lt_loc) for zi in range(zstart, zend)}
-        for zi in range(zstart, zend):
-            for k in tform_stack_manual[zi]:
-                tz, tx, ty = tform_stack_manual[zi][k]
-                tformed_tile_lt_loc_refined[zi][k][0] = tformed_tile_lt_loc_refined[zi][k][0] + tx
-                tformed_tile_lt_loc_refined[zi][k][1] = tformed_tile_lt_loc_refined[zi][k][1] + ty
-    else:
-        ## Coarse
-        tformed_tile_lt_loc = {0: copy.deepcopy(tile_lt_loc)}
-        for k in tform_stack_coarse:
-            tz, tx, ty = tform_stack_coarse[k]
-            tformed_tile_lt_loc[0][k][0] = tformed_tile_lt_loc[0][k][0] + tx
-            tformed_tile_lt_loc[0][k][1] = tformed_tile_lt_loc[0][k][1] + ty
-        ## Refine
-        tformed_tile_lt_loc_refined = {zi: copy.deepcopy(tformed_tile_lt_loc[0]) for zi in range(zstart, zend)}
-        for zi in range(zstart, zend):
-            for k in tform_stack_refine[zi]:
-                tx, ty = tform_stack_refine[zi][k]
-                tformed_tile_lt_loc_refined[zi][k][0] = tformed_tile_lt_loc_refined[zi][k][0] + tx
-                tformed_tile_lt_loc_refined[zi][k][1] = tformed_tile_lt_loc_refined[zi][k][1] + ty
-                if tform_stack_ptreg is not None:
-                    if k in tform_stack_ptreg[zi]:
-                        tx, ty = tform_stack_ptreg[zi][k]
-                        tformed_tile_lt_loc_refined[zi][k][0] = tformed_tile_lt_loc_refined[zi][k][0] + tx
-                        tformed_tile_lt_loc_refined[zi][k][1] = tformed_tile_lt_loc_refined[zi][k][1] + ty
+    # if tform_stack_manual is not None:
+    #     tformed_tile_lt_loc_refined = {zi: copy.deepcopy(tile_lt_loc) for zi in range(zstart, zend)}
+    #     for zi in range(zstart, zend):
+    #         for k in tform_stack_manual[zi]:
+    #             tz, tx, ty = tform_stack_manual[zi][k]
+    #             tformed_tile_lt_loc_refined[zi][k][0] = tformed_tile_lt_loc_refined[zi][k][0] + tx
+    #             tformed_tile_lt_loc_refined[zi][k][1] = tformed_tile_lt_loc_refined[zi][k][1] + ty
+    # else:
+    ## Coarse
+    tformed_tile_lt_loc = {0: copy.deepcopy(tile_lt_loc)}
+    for k in tform_stack_coarse:
+        tz, tx, ty = tform_stack_coarse[k]
+        tformed_tile_lt_loc[0][k][0] = tformed_tile_lt_loc[0][k][0] + tx
+        tformed_tile_lt_loc[0][k][1] = tformed_tile_lt_loc[0][k][1] + ty
+    ## Refine
+    tformed_tile_lt_loc_refined = {zi: copy.deepcopy(tformed_tile_lt_loc[0]) for zi in range(zstart, zend)}
+    for zi in range(zstart, zend):
+        for k in tform_stack_refine[zi]:
+            tx, ty = tform_stack_refine[zi][k]
+            tformed_tile_lt_loc_refined[zi][k][0] = tformed_tile_lt_loc_refined[zi][k][0] + tx
+            tformed_tile_lt_loc_refined[zi][k][1] = tformed_tile_lt_loc_refined[zi][k][1] + ty
+            if tform_stack_ptreg is not None:
+                if k in tform_stack_ptreg[zi]:
+                    tx, ty = tform_stack_ptreg[zi][k]
+                    tformed_tile_lt_loc_refined[zi][k][0] = tformed_tile_lt_loc_refined[zi][k][0] + tx
+                    tformed_tile_lt_loc_refined[zi][k][1] = tformed_tile_lt_loc_refined[zi][k][1] + ty
 
     '''
     Whole brain map
@@ -860,10 +875,10 @@ def whole_brain_map(ptag, btag, device='cuda:3'):
             _bbox = torch.cat(_bbox)
             _label = torch.cat(_label)
             
-            if tform_stack_manual is None:
-                tz = tform_stack_coarse[k][0]
-                _bbox[:, 0] = _bbox[:, 0] + tz
-                _bbox[:, 3] = _bbox[:, 3] + tz
+            # if tform_stack_manual is None:
+            tz = tform_stack_coarse[k][0]
+            _bbox[:, 0] = _bbox[:, 0] + tz
+            _bbox[:, 3] = _bbox[:, 3] + tz
             ct = (_bbox[:, :3] + _bbox[:, 3:]) / 2
             pre_refine_lt_x = None
             pre_refine_lt_y = None
@@ -876,39 +891,39 @@ def whole_brain_map(ptag, btag, device='cuda:3'):
                 b = _bbox[ct_zmask].clone()
                 l = _label[ct_zmask]
                 v = _vol[ct_zmask]
-                if tform_stack_manual is None:
-                    if (abs(tform_stack_refine[zi][k][0]) > tform_xy_max[0] or abs(tform_stack_refine[zi][k][1]) > tform_xy_max[1]):
-                        if pre_refine_lt_x is not None:
-                            refine_lt_x = pre_refine_lt_x
-                            refine_lt_y = pre_refine_lt_y
-                        else:
-                            for zii in range(zi, len(tform_stack_refine)):
-                                if abs(tform_stack_refine[zii][k][0]) <= tform_xy_max[0] and abs(tform_stack_refine[zii][k][1]) <= tform_xy_max[1]:
-                                    refine_lt_x = tformed_tile_lt_loc_refined[zii][k][0]
-                                    refine_lt_y = tformed_tile_lt_loc_refined[zii][k][1]
-                                    break
+                # if tform_stack_manual is None:
+                if (abs(tform_stack_refine[zi][k][0]) > tform_xy_max[0] or abs(tform_stack_refine[zi][k][1]) > tform_xy_max[1]):
+                    if pre_refine_lt_x is not None:
+                        refine_lt_x = pre_refine_lt_x
+                        refine_lt_y = pre_refine_lt_y
                     else:
-                        refine_lt_x = tformed_tile_lt_loc_refined[zi][k][0]
-                        refine_lt_y = tformed_tile_lt_loc_refined[zi][k][1]
+                        for zii in range(zi, len(tform_stack_refine)):
+                            if abs(tform_stack_refine[zii][k][0]) <= tform_xy_max[0] and abs(tform_stack_refine[zii][k][1]) <= tform_xy_max[1]:
+                                refine_lt_x = tformed_tile_lt_loc_refined[zii][k][0]
+                                refine_lt_y = tformed_tile_lt_loc_refined[zii][k][1]
+                                break
                 else:
                     refine_lt_x = tformed_tile_lt_loc_refined[zi][k][0]
                     refine_lt_y = tformed_tile_lt_loc_refined[zi][k][1]
+                # else:
+                #     refine_lt_x = tformed_tile_lt_loc_refined[zi][k][0]
+                #     refine_lt_y = tformed_tile_lt_loc_refined[zi][k][1]
                 pre_refine_lt_x = refine_lt_x
                 pre_refine_lt_y = refine_lt_y
-                if tform_stack_manual is None:
-                    if tform_stack_ptreg is not None:
-                        if k in tform_stack_ptreg[zi]:
-                            tx, ty = tform_stack_ptreg[zi][k]
-                            refine_lt_x = refine_lt_x + tx
-                            refine_lt_y = refine_lt_y + ty
+                # if tform_stack_manual is None:
+                if tform_stack_ptreg is not None:
+                    if k in tform_stack_ptreg[zi]:
+                        tx, ty = tform_stack_ptreg[zi][k]
+                        refine_lt_x = refine_lt_x + tx
+                        refine_lt_y = refine_lt_y + ty
 
                 b[:, 1] = b[:, 1] + refine_lt_x
                 b[:, 2] = b[:, 2] + refine_lt_y
                 b[:, 4] = b[:, 4] + refine_lt_x
                 b[:, 5] = b[:, 5] + refine_lt_y
-                if tform_stack_manual is not None:
-                    b[:, 0] = b[:, 0] + tform_stack_manual[zi][k][0]
-                    b[:, 3] = b[:, 3] + tform_stack_manual[zi][k][0]
+                # if tform_stack_manual is not None:
+                #     b[:, 0] = b[:, 0] + tform_stack_manual[zi][k][0]
+                #     b[:, 3] = b[:, 3] + tform_stack_manual[zi][k][0]
                 bbox.append(b)
                 label.append(l)
                 vol.append(v)
@@ -996,13 +1011,13 @@ def whole_brain_map(ptag, btag, device='cuda:3'):
     else:
         nms_tag = "after"
     
-    if tform_stack_manual is not None:
-        nib.save(nib.Nifti1Image(density_map.numpy().astype(np.float64), affine_m, header=new_header), f'{save_path}/whole_brain_map/NIS_density_{nms_tag}_manual_{ptag}_{btag.split("_")[1]}.nii.gz')
+    # if tform_stack_manual is not None:
+    #     nib.save(nib.Nifti1Image(density_map.numpy().astype(np.float64), affine_m, header=new_header), f'{save_path}/whole_brain_map/NIS_density_{nms_tag}_manual_{ptag}_{btag.split("_")[1]}.nii.gz')
+    # else:
+    if tform_stack_ptreg is not None:
+        nib.save(nib.Nifti1Image(density_map.numpy().astype(np.float64), affine_m, header=new_header), f'{save_path}/whole_brain_map/NIS_density_{nms_tag}_rm2_{ptag}_{btag.split("_")[1]}.nii.gz')
     else:
-        if tform_stack_ptreg is not None:
-            nib.save(nib.Nifti1Image(density_map.numpy().astype(np.float64), affine_m, header=new_header), f'{save_path}/whole_brain_map/NIS_density_{nms_tag}_rm2_{ptag}_{btag.split("_")[1]}.nii.gz')
-        else:
-            nib.save(nib.Nifti1Image(density_map.numpy().astype(np.float64), affine_m, header=new_header), f'{save_path}/whole_brain_map/NIS_density_{nms_tag}_rm_{ptag}_{btag.split("_")[1]}.nii.gz')
+        nib.save(nib.Nifti1Image(density_map.numpy().astype(np.float64), affine_m, header=new_header), f'{save_path}/whole_brain_map/NIS_density_{nms_tag}_rm_{ptag}_{btag.split("_")[1]}.nii.gz')
 
     # if tform_stack_manual is not None:
     #     nib.save(nib.Nifti1Image(volavg_map.numpy().astype(np.float64), affine_m, header=new_header), f'{save_path}/whole_brain_map/NIS_volavg_{nms_tag}_manual_{ptag}_{btag.split("_")[1]}.nii.gz')
@@ -1296,15 +1311,20 @@ def box_area(bbox, D):
 
 
 def downsample(center, vol, ratio, dshape, device, skip_vol=False):
-    center = center.to(device)
-    vol = vol.float().to(device)
+    center = center.clone().to(device)
+    if vol is not None:
+        vol = vol.float().to(device)
     center[:,0] = center[:,0] * ratio[0]
     center[:,1] = center[:,1] * ratio[1]
     center[:,2] = center[:,2] * ratio[2]
-    dshape = [max(dshape[0], int(center[:,0].max()+2)), max(dshape[1], int(center[:,1].max()+2)), max(dshape[2], int(center[:,2].max()+2))]
-    z = center[:, 0].clip(min=0)#, max=dshape[0]-0.9)
-    y = center[:, 1].clip(min=0)#, max=dshape[1]-0.9)
-    x = center[:, 2].clip(min=0)#, max=dshape[2]-0.9)
+    dshape = [max(int(dshape[0]*ratio[0]), int(center[:,0].max()+2)), max(int(dshape[1]*ratio[1]), int(center[:,1].max()+2)), max(int(dshape[2]*ratio[2]), int(center[:,2].max()+2))]
+    # dshape = [int(center[:,0].max()+1), int(center[:,1].max()+1), int(center[:,2].max()+1)]
+    # outbound_mask = torch.logical_or(center[:, 0].round() > dshape[0]-1, center[:, 1].round() > dshape[1]-1)
+    # outbound_mask = torch.logical_or(outbound_mask, center[:, 2].round() > dshape[2]-1)
+    # center = center[torch.logical_not(outbound_mask)]
+    z = center[:, 0].clip(min=0)
+    y = center[:, 1].clip(min=0)
+    x = center[:, 2].clip(min=0)
     # print(center.shape, z, x, y)
     loc = torch.arange(dshape[0]*dshape[1]*dshape[2]).view(dshape[0], dshape[1], dshape[2]).to(device) 
     loc = loc[(z.round().long(), y.round().long(), x.round().long())] # all nis location in the downsample space
@@ -1334,6 +1354,7 @@ def downsample(center, vol, ratio, dshape, device, skip_vol=False):
     density[atlas_loc] = loc_count.double() #/ center.shape[0]
     density = density.view(dshape[0], dshape[1], dshape[2]).cpu()
     return density, vol_avg
+
 
 def init_nib_header():
     mask_fn = "/lichtman/Felix/Lightsheet/P4/pair15/output_L73D766P4/registered/L73D766P4_MASK_topro_25_all.nii"

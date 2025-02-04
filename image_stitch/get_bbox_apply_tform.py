@@ -10,11 +10,11 @@ from datetime import datetime
 OVERLAP_R = 0.2
 zratio = 2.5/4
 
-def get_bbox_with_tform(ptag, btag):
+def get_bbox_with_tform(ptag, btag, save_path, result_path):
     overlap_r = OVERLAP_R
 
-    save_path = f'/cajal/ACMUSERS/ziquanw/Lightsheet/stitch_by_ptreg/{ptag}/{btag.split("_")[1]}'
-    result_path = f'/cajal/ACMUSERS/ziquanw/Lightsheet/results/P4/{ptag}/{btag}'
+    # save_path = f'/cajal/ACMUSERS/ziquanw/Lightsheet/stitch_by_ptreg/{ptag}/{btag.split("_")[1]}'
+    # result_path = f'/cajal/ACMUSERS/ziquanw/Lightsheet/results/P4/{ptag}/{btag}'
     root = result_path + '/UltraII[%02d x %02d]'
     tile_loc = np.array([[int(fn[8:10]), int(fn[-3:-1])] for fn in os.listdir(result_path) if 'Ultra' in fn])
     ncol, nrow = tile_loc.max(0)+1

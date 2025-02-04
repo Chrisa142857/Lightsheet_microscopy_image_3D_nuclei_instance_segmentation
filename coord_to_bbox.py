@@ -7,28 +7,33 @@ from tqdm import trange, tqdm
 import nibabel as nib
 
 def main():
-    # r='/cajal/ACMUSERS/ziquanw/Lightsheet/results/P14'
-    r='/cajal/ACMUSERS/ziquanw/Lightsheet/results/P4'
-    p='pair6'
-    b='220416_L57D855P2_topro_ctip2_brn2_4x_0_108na_50sw_11hdf_4z_09-52-07'
-    for t in os.listdir(f'{r}/{p}/{b}'):
-        assert 'Ultra' in t, t
-        for f in os.listdir(f'{r}/{p}/{b}/{t}'):
-            if 'binary_mask.zip' not in f: continue
-            # if os.path.exists(f'{r}/{p}/{b}/{t}/{f}'.replace('.zip', '.nii.gz')): continue
-            print(datetime.now(), f"Convert {p}/{b}/{t}/{f}")
-            convert_torch2nii(f'{r}/{p}/{b}/{t}/{f}')
-    # '''
-    # convert coordinate to bounding box
-    # '''
-    # for p in os.listdir(r):
-    #     if 'pair' not in p: continue
-    #     for b in os.listdir(f'{r}/{p}'):
-    #         if b[0] == 'L': continue
-    #         if b == '220805_L74D769P4_OUT_topro_ctip2_brn2_4x_11hdf_50sw_0_108na_4z_20ov_15-51-36.manyZstitch': continue
-    #         for t in os.listdir(f'{r}/{p}/{b}'):
-    #             assert 'Ultra' in t, t
-    #             coord_to_bbox_one_tile(p, b, t)
+    device = 'cuda:2'
+    r='/cajal/ACMUSERS/ziquanw/Lightsheet/results/P14'                                                                          # Root to NIS results
+    # r='/cajal/ACMUSERS/ziquanw/Lightsheet/results/P4'
+    # p='pair6'
+    # b='220416_L57D855P2_topro_ctip2_brn2_4x_0_108na_50sw_11hdf_4z_09-52-07'
+    # p='pair14'
+    # b='220722_L73D766P5_OUT_topro_brn2_ctip2_4x_50sw_0_108na_11hdf_4z_20ov_16-49-30'
+    # for t in os.listdir(f'{r}/{p}/{b}'):
+    #     assert 'Ultra' in t, t
+    #     coord_to_bbox_one_tile(p, b, t, device=device)
+        # for f in os.listdir(f'{r}/{p}/{b}/{t}'):
+        #     if 'binary_mask.zip' not in f: continue
+        #     # if os.path.exists(f'{r}/{p}/{b}/{t}/{f}'.replace('.zip', '.nii.gz')): continue
+        #     print(datetime.now(), f"Convert {p}/{b}/{t}/{f}")
+        #     convert_torch2nii(f'{r}/{p}/{b}/{t}/{f}')
+    '''
+    convert coordinate to bounding box
+    '''
+    for p in os.listdir(r):
+        # if 'pair' not in p: continue
+        for b in os.listdir(f'{r}/{p}'):
+            if b[0] == 'L': continue                                                                                            # Only loop on expected folders
+            if '.' in b: continue                                                                                               # Only loop on folders
+            if b == '220805_L74D769P4_OUT_topro_ctip2_brn2_4x_11hdf_50sw_0_108na_4z_20ov_15-51-36.manyZstitch': continue        # To skip some unexpected folders
+            for t in os.listdir(f'{r}/{p}/{b}'):
+                assert 'Ultra' in t, t                                                                                          
+                coord_to_bbox_one_tile(p, b, t, device=device)
 
     # '''
     # convert binary_mask.zip to binary_mask.nii.gz
@@ -54,9 +59,8 @@ def convert_torch2nii(fn):
     m = m.numpy()
     nib.save(nib.Nifti1Image(m, np.eye(4)), fn.replace('.zip', '.nii.gz'))
 
-def coord_to_bbox_one_tile(ptag='pair4', btag='220904_L35D719P5_topro_brn2_ctip2_4x_0_108na_50sw_11hdf_4z_20ov_21-49-38', tile_name='UltraII[%02d x %02d]'):
-    device = 'cuda:1'
-    result_path = f'/cajal/ACMUSERS/ziquanw/Lightsheet/results/P4/{ptag}/{btag}'
+def coord_to_bbox_one_tile(ptag='pair4', btag='220904_L35D719P5_topro_brn2_ctip2_4x_0_108na_50sw_11hdf_4z_20ov_21-49-38', tile_name='UltraII[%02d x %02d]', device = 'cuda:1'):
+    result_path = f'/cajal/ACMUSERS/ziquanw/Lightsheet/results/P14/{ptag}/{btag}'
     # tile_loc = np.array([[int(fn[8:10]), int(fn[-3:-1])] for fn in os.listdir(result_path)])
     # root = result_path + '/UltraII[%02d x %02d]'
     root = f'{result_path}/{tile_name}'

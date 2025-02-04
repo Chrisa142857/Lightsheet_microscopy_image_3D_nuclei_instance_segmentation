@@ -1,22 +1,22 @@
 cmake_minimum_required(VERSION 3.0 FATAL_ERROR)
-project(test)
+project(main)
 set(TORCH_LIBRARIES /ram/USERS/ziquanw/libs/pytorch-install)
 
-find_package(HDF5 REQUIRED)
 find_package(Torch REQUIRED)
 find_package( OpenCV REQUIRED )
-find_package(HighFive REQUIRED)
 
 file(GLOB SOURCES
     ./*.h
+    ./*.hpp
     ./*.cpp
 )
+list(REMOVE_ITEM SOURCES
+    "${CMAKE_CURRENT_SOURCE_DIR}/test.cpp"
+)
 
-add_executable(test ${SOURCES})
+add_executable(main ${SOURCES})
 
-target_link_libraries(test HighFive)
-target_link_libraries(test "${TORCH_LIBRARIES}")
-target_link_libraries(test ${OpenCV_LIBS})
-target_link_libraries(test HDF5::HDF5)
+target_link_libraries(main "${TORCH_LIBRARIES}")
+target_link_libraries(main ${OpenCV_LIBS})
 
-set_property(TARGET test PROPERTY CXX_STANDARD 17)
+set_property(TARGET main PROPERTY CXX_STANDARD 17)

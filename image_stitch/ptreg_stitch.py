@@ -17,8 +17,8 @@ from cpd_translation import RigidRegistration
 from get_bbox_apply_tform import get_bbox_with_tform
 
 ZRANGE = 15
-OVERLAP_R = 0.2
-zratio = 2.5/4
+OVERLAP_R = 0.15
+zratio = 2.5/4 # hard-coded in NIS cpp
 
 def main():
     
@@ -66,24 +66,24 @@ def main():
 
 
     stitch_tile_ij_lst = [
-        [[2,4], [2,0], [1,0]],
-        [[3,4], [0,1]],
-        [[0,1], [0,2], [0,3], [0,4]]
+        # [[2,4], [2,0], [1,0]],
+        [[3,4]],#[[3,4], [0,1]],
+        # [[0,1], [0,2], [0,3], [0,4]]
     ]
     stitch_slice_ranges_lst = [
-        [[0.7,1], [0,0.3], [0.5,1]],
-        [[0,1], [0.7,1]],
-        [[0,1], [0,1], [0,1], [0,1]],
+        # [[0.7,1], [0,0.3], [0.5,1]],
+        [[0,1]],#[[0,1], [0.7,1]],
+        # [[0,1], [0,1], [0,1], [0,1]],
     ]
     ptags = [
-        'pair13',
+        # 'pair13',
         'pair14',
-        'pair18'
+        # 'pair18'
     ]
     btags = [
-        '220827_L69D764P6_OUT_topro_brn2_ctip2_4x_11hdf_0_108na_50sw_4z_20ov_16-47-13',
+        # '220827_L69D764P6_OUT_topro_brn2_ctip2_4x_11hdf_0_108na_50sw_4z_20ov_16-47-13',
         '220722_L73D766P5_OUT_topro_brn2_ctip2_4x_50sw_0_108na_11hdf_4z_20ov_16-49-30',
-        '220809_L77D764P8_OUT_topro_ctip2_brn2_4x_11hdf_50sw_0_108na_4z_20ov_09-52-21',
+        # '220809_L77D764P8_OUT_topro_ctip2_brn2_4x_11hdf_50sw_0_108na_4z_20ov_09-52-21',
     ]
     for stitch_tile_ij, stitch_slice_ranges, ptag, btag in zip(stitch_tile_ij_lst, stitch_slice_ranges_lst, ptags, btags):
         stitch_by_ptreg(stitch_tile_ij, stitch_slice_ranges, ptag, btag)
@@ -93,13 +93,15 @@ def main():
 def stitch_by_ptreg(stitch_tile_ij, stitch_slice_ranges,
     ptag='pair4',
     btag='220904_L35D719P5_topro_brn2_ctip2_4x_0_108na_50sw_11hdf_4z_20ov_21-49-38',
-    device = 'cuda:0'
+    device = 'cuda:3',
+    save_path = None,
+    result_path = None,
 ):    
+    # save_path = f'/cajal/ACMUSERS/ziquanw/Lightsheet/stitch_by_ptreg/{ptag}/{btag.split("_")[1]}',
+    # result_path = f'/cajal/ACMUSERS/ziquanw/Lightsheet/results/P4/{ptag}/{btag}',
     
     overlap_r = OVERLAP_R
 
-    save_path = f'/cajal/ACMUSERS/ziquanw/Lightsheet/stitch_by_ptreg/{ptag}/{btag.split("_")[1]}'
-    result_path = f'/cajal/ACMUSERS/ziquanw/Lightsheet/results/P4/{ptag}/{btag}'
     root = result_path + '/UltraII[%02d x %02d]'
     tile_loc = np.array([[int(fn[8:10]), int(fn[-3:-1])] for fn in os.listdir(result_path) if 'Ultra' in fn])
     ncol, nrow = tile_loc.max(0)+1
@@ -116,7 +118,7 @@ def stitch_by_ptreg(stitch_tile_ij, stitch_slice_ranges,
     stitch_slice_ranges = [[int(r[0]*zend), int(r[1]*zend)] for r in stitch_slice_ranges]
     zstart = 0 
 
-    stack_nis_bbox, stack_nis_label, tformed_tile_lt_loc_refined = get_bbox_with_tform(ptag, btag)
+    stack_nis_bbox, stack_nis_label, tformed_tile_lt_loc_refined = get_bbox_with_tform(ptag, btag, save_path, result_path)
     # tform_stack_coarse = json.load(open(f'{save_path}/NIS_tranform/{btag.split("_")[1]}_tform_coarse.json', 'r', encoding='utf-8'))
     # tform_stack_refine = json.load(open(f'{save_path}/NIS_tranform/{btag.split("_")[1]}_tform_refine.json', 'r', encoding='utf-8'))
 
@@ -231,7 +233,10 @@ def stitch_by_ptreg(stitch_tile_ij, stitch_slice_ranges,
     neighbor = [[-1, 0], [0, -1], [-1, -1], [1, 0], [0, 1], [1, 1], [1, -1], [-1, 1]]
     tformed_tile_lt_loc = {zi: copy.deepcopy(corse_tformed_tile_lt_loc[zi]) for zi in range(zstart, zend)}
     refined_ks = [[_i, _j] for _i in range(ncol) for _j in range(nrow) if [_i, _j] not in stitch_tile_ij]
-    _i, _j = refined_ks[0]
+    if len(refined_ks) == 0:
+        refined_ks = [[0, 0]]
+    else:
+        _i, _j = refined_ks[0]
     new_tile_pt_refine = {f'{_i}-{_j}': new_tile_pt_coarse[f'{_i}-{_j}'] for _i, _j in refined_ks}
     
     if os.path.exists(f'{save_path}/doubled_NIS_label/{btag.split("_")[1]}_doubled_label.zip'):

@@ -3,14 +3,14 @@ import os, torch, copy, scipy, skimage, json
 from tqdm import trange, tqdm
 import nibabel as nib
 from PIL import Image
-
+from multiprocessing import Pool
 import matplotlib.pyplot as plt
 
 from skimage.registration import phase_cross_correlation
 
 
 from datetime import datetime
-OVERLAP_R = 0.2
+OVERLAP_R = 0.15 # P14
 zratio = 2.5/4
 
 def main():
@@ -21,8 +21,7 @@ def main():
     # stitch_ls_image(ptag, btag)
     # exit()
     not_ready = ['pair15', 'pair22', 'pair3', 'pair10', 'pair8', 'pair9', 'pair5', 'pair12', 'pair21', 'pair6', 'pair11']
-    done = ['pair4']
-    r = '/cajal/ACMUSERS/ziquanw/Lightsheet/image_before_stitch/P4'
+    r = '/cajal/ACMUSERS/ziquanw/Lightsheet/image_before_stitch/P14'
     # for ptag in os.listdir(r):
     #     if ptag in not_ready or ptag in done: continue
     #     for btag in os.listdir(f'{r}/{ptag}'):
@@ -36,12 +35,48 @@ def main():
     #         print("=== PCC stitch ", ptag, btag.split('_')[1], "===")
     #         if not os.path.exists(f'{save_path}/NIS_tranform/{btag.split("_")[1]}_tform_refine.json'):
     #             get_stitch_tform(ptag, btag)
-        
-    # for ptag in os.listdir(r):
-    #     if ptag in not_ready or ptag in done: continue
+    done = ['L95P2']
+    brain_ready = [
+        # ['female', '231028_L106P5_sox9toproneun_sw50_4x_df9_4z_ov15_ex50_01-41-16'],
+        # ['female', '231026_L102P1_sox9toproneun_sw50_4x_df9_4z_ov15_ex50_11-39-32'],
+        # ['female', '230902_L86P4_sox9toproneun_sw50_4x_df9_4z_ov15_ex50_22-54-23'],
+        # ['female', '230902_L86P3_sox9toproneun_sw50_4x_df9_4z_ov15_ex50_11-25-11'],
+        # ['female', '231028_L106P3_sox9toproneun_sw50_4x_df9_4z_ov15_ex50_14-48-05'],
+        # ['female', '230907_L88P3_sox9toproneun_sw50_4x_df9_4z_ov15_ex50_18-15-15'],
+        # ['male', '230826_L94P2_sox9toproneun_sw50_4x_df9_4z_ov15_ex50_23-30-15'],
+        # ['male', '230820_L88P1_sox9toproneun_sw50_4x_df9_4z_ov15_ex50_11-00-37'],
+        # ['male', '230826_L94P1_sox9toproneun_sw50_4x_df9_4z_ov15_ex50_19-04-29'],
+        # ['male', '230820_L88P2_sox9toproneun_sw50_4x_df9_4z_ov15_ex50_21-23-23'],
+        # ['male', '230818_L87D868P2_sox9toproneun_sw50_4x_df9_4z_ov15_ex50_15-26-37'],
+        # ['male', '230813_L82D711P3_sox9toproneun_sw50_4x_df9_4z_ov15_ex50_23-59-14'],
+        # ['male', '230810_L68P3_sox9toproneun_sw50_4x_df9_4z_ov15_ex50_15-49-53'],
+        ['male', '230811_L68D767P4_sox9toproneun_sw50_4x_df9_4z_ov15_ex50_12-13-51'],
+        ['male', '230819_L87P1_sox9toproneun_sw50_4x_df9_4z_ov15_ex50_09-23-37'],
+        ['male', '230825_L92P2_sox9toproneun_sw50_4x_df9_4z_ov15_ex50_08-59-16']
+    ]
+    for ptag, btag in brain_ready:
+    # for ptag in ['male', 'female']:
+    #     for btag in os.listdir(f'{r}/{ptag}'):
+            if btag.split('_')[1] in done: continue
+            ls_image_root = f'/cajal/ACMUSERS/ziquanw/Lightsheet/image_before_stitch/P14/{ptag}/{btag}'
+            save_path = f'/cajal/ACMUSERS/ziquanw/Lightsheet/stitch_by_ptreg/P14/{ptag}/{btag.split("_")[1]}'
+            result_path = f'/cajal/ACMUSERS/ziquanw/Lightsheet/results/P14/{ptag}/{btag}'
+            root = result_path + '/UltraII[%02d x %02d]'
+            if not os.path.exists(root % (0, 0)): continue
+            stack_names = [f for f in os.listdir(root % (0, 0)) if f.endswith('instance_center.zip')]
+            if len(stack_names) == 0: 
+                print(ptag, btag.split('_')[1], "NIS not completed, skip")
+                continue
+            print("=== PCC stitch ", ptag, btag.split('_')[1], "===")
+            if not os.path.exists(f'{save_path}/NIS_tranform/{btag.split("_")[1]}_tform_refine.json'):
+                get_stitch_tform(ptag, btag, ls_image_root, save_path, result_path)
+
+    # for ptag in ['male', 'female']:
+    # # for ptag in os.listdir(r):
+    #     # if ptag in not_ready or ptag in done: continue
     #     for btag in os.listdir(f'{r}/{ptag}'):
     #         if 'L74D769P4' in btag: continue
-    #         save_path = f'/cajal/ACMUSERS/ziquanw/Lightsheet/stitch_by_ptreg/{ptag}/{btag.split("_")[1]}'
+    #         save_path = f'/cajal/ACMUSERS/ziquanw/Lightsheet/stitch_by_ptreg/P14/{ptag}/{btag.split("_")[1]}'
     #         if os.path.exists(f'{save_path}/NIS_tranform/{btag.split("_")[1]}_tform_refine.json'):
     #             print("=== Stitch LS", ptag, btag.split('_')[1], "===")
     #             stitch_ls_image(ptag, btag)
@@ -168,30 +203,29 @@ def main():
     # get_stitch_tform(ptag, btag)
     # ptag='pair13'
     # btag='220828_L69D764P9_OUT_topro_brn2_ctip2_4x_11hdf_0_108na_50sw_4z_20ov_16-49-09'
-    # print("=== whole_brain_map ", ptag, btag.split("_")[1], "===")
-    # whole_brain_map(ptag, btag, device)
 
 def get_stitch_tform(
     ptag='pair4', 
     btag='220904_L35D719P5_topro_brn2_ctip2_4x_0_108na_50sw_11hdf_4z_20ov_21-49-38',
-    # btag='220902_L35D719P3_topro_brn2_ctip2_4x_11hdf_0_108na_50sw_4z_20ov_16-41-36'
+    # btag='220902_L35D719P3_topro_brn2_ctip2_4x_11hdf_0_108na_50sw_4z_20ov_16-41-36',
+    ls_image_root = f'/lichtman/Felix/Lightsheet/P4',
+    save_path = f'/cajal/ACMUSERS/ziquanw/Lightsheet/stitch_by_ptreg',
+    result_path = f'/cajal/ACMUSERS/ziquanw/Lightsheet/results/P4'
 ):
 
     overlap_r = OVERLAP_R
-
-    save_path = f'/cajal/ACMUSERS/ziquanw/Lightsheet/stitch_by_ptreg/{ptag}/{btag.split("_")[1]}'
-    result_path = f'/cajal/ACMUSERS/ziquanw/Lightsheet/results/P4/{ptag}/{btag}'
+    # ls_image_root = f'{ls_image_root}/{ptag}/{btag}'
+    # save_path = f'/cajal/ACMUSERS/ziquanw/Lightsheet/stitch_by_ptreg/{ptag}/{btag.split("_")[1]}'
+    # result_path = f'/cajal/ACMUSERS/ziquanw/Lightsheet/results/P4/{ptag}/{btag}'
     tile_loc = np.array([[int(fn[8:10]), int(fn[-3:-1])] for fn in os.listdir(result_path) if 'Ultra' in fn])
     ncol, nrow = tile_loc.max(0)+1
     # print(tile_loc, nrow, ncol)
     assert len(tile_loc) == nrow*ncol, f'tile of raw data is not complete, tile location: {tile_loc}'
 
-    ls_image_root = f'/lichtman/Felix/Lightsheet/P4/{ptag}/{btag}'
-    fn_ = ls_image_root.split('_')[-1]+'_'+'_'.join(btag.split('_')[1:-1])
     root = result_path + '/UltraII[%02d x %02d]'
     stack_names = [f for f in os.listdir(root % (0, 0)) if f.endswith('instance_center.zip')]
     stack_names = sort_stackname(stack_names)
-    neighbor = [[-1, 0], [0, -1], [-1, -1], [1, 0], [0, 1], [1, 1], [1, -1], [-1, 1]]
+    # neighbor = [[-1, 0], [0, -1], [-1, -1], [1, 0], [0, 1], [1, 1], [1, -1], [-1, 1]]
     os.makedirs(f'{save_path}/NIS_tranform', exist_ok=True)
 
     for stack_name in stack_names:
@@ -217,11 +251,15 @@ def get_stitch_tform(
         if i not in col_order: col_order.append(i)
 
     print(datetime.now(), f"Preload {ncol*nrow} raw 3D LS images for stitch")
+    # fn_ = ls_image_root.split('_')[-1]+'_'+'_'.join(btag.split('_')[1:-1])
     tile_overlap = {}
     for i in range(ncol):
         for j in range(nrow):
             if f'{i}-{j}' not in tile_overlap:
-                fn = f'{ls_image_root}/{fn_}_UltraII[{i:02d} x {j:02d}]_C01_xyz-Table Z%04d.ome.tif'
+                fn_ = os.listdir(f'{ls_image_root}/UltraII[{i:02d} x {j:02d}]')[0]
+                fn_ = fn_.split('_')[0] + '_%04d_' + '_'.join(fn_.split('_')[2:-1]) + '_xyz-Table Z%04d.ome.tif'
+                # fn = f'{ls_image_root}/UltraII[{i:02d} x {j:02d}]/'
+                fn = f'{ls_image_root}/UltraII[{i:02d} x {j:02d}]/{fn_}'
                 tile_overlap[f'{i}-{j}'] = get_tile_stack_overlap_area(fn, range(zstart, zend), overlap_r)
 
     '''
@@ -235,18 +273,18 @@ def get_stitch_tform(
         j = 0
         tform_stack_coarse_colrow[f'{i}-{j}'] = [[0], [0], [0]]
         for j in range(1, nrow):
-            if f'{i}-{j}' not in tile_overlap:
-                fn = f'{ls_image_root}/{fn_}_UltraII[{i:02d} x {j:02d}]_C01_xyz-Table Z%04d.ome.tif'
-                tile_overlap[f'{i}-{j}'] = get_tile_stack_overlap_area(fn, range(zstart, zend), overlap_r)
+            # if f'{i}-{j}' not in tile_overlap:
+            #     fn = f'{ls_image_root}/{fn_}_UltraII[{i:02d} x {j:02d}]_C01_xyz-Table Z%04d.ome.tif'
+            #     tile_overlap[f'{i}-{j}'] = get_tile_stack_overlap_area(fn, range(zstart, zend), overlap_r)
 
             moving_image = tile_overlap[f'{i}-{j}']
             if f'{i}-{j}' not in tform_stack_coarse_colrow:
                 tform_stack_coarse_colrow[f'{i}-{j}'] = [[], [], []]
             for pi, pj in neighbor_row:
                 if f'{i+pi}-{j+pj}' in tform_stack_coarse_colrow: 
-                    if f'{i+pi}-{j+pj}' not in tile_overlap:
-                        fn = f'{ls_image_root}/{fn_}_UltraII[{(i+pi):02d} x {(j+pj):02d}]_C01_xyz-Table Z%04d.ome.tif'
-                        tile_overlap[f'{i+pi}-{j+pj}'] = get_tile_stack_overlap_area(fn, range(zstart, zend), overlap_r)
+                    # if f'{i+pi}-{j+pj}' not in tile_overlap:
+                    #     fn = f'{ls_image_root}/{fn_}_UltraII[{(i+pi):02d} x {(j+pj):02d}]_C01_xyz-Table Z%04d.ome.tif'
+                    #     tile_overlap[f'{i+pi}-{j+pj}'] = get_tile_stack_overlap_area(fn, range(zstart, zend), overlap_r)
 
                     reference_image = tile_overlap[f'{i+pi}-{j+pj}']
                     if pj < 0:
@@ -672,8 +710,11 @@ class image_stitch_QCer:
 
 def get_tile_stack_overlap_area(fn, zrange, overlap_r):
     stack_overlaps = [[], [], [], []]
-    for zi in zrange:
-        tile_img = Image.open(fn % zi)
+    with Pool(processes=min(len(zrange),30)) as loader_pool:
+        image_list = list(loader_pool.imap(Image.open, tqdm([fn % (zi,zi) for zi in zrange], desc=f'Load {fn.split("/")[-2]}')))
+    # for zi in zrange:
+    for tile_img in image_list:
+        # tile_img = Image.open(fn % (zi,zi))
         tile_img = np.asarray(tile_img)
         h, w = tile_img.shape
         oh = int(h*overlap_r) + 1
