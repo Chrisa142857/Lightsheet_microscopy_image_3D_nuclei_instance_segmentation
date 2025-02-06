@@ -106,10 +106,8 @@ def coloc(ptag, btag, device='cpu', run_reverse=False):
         # col_iterator = range(ncol-1, -1, -1)
         row_iterator = range(nrow-2, -1, -1)
     else:
-        # col_iterator = range(ncol)
-        # row_iterator = range(nrow)
-        col_iterator = [0]
-        row_iterator = [0,1]
+        col_iterator = range(ncol)
+        row_iterator = range(nrow)
 
     brain_c1 = {f'{dmin},{dmax}': {} for dmin, dmax in dranges}
     brain_c2 = {f'{dmin},{dmax}': {} for dmin, dmax in dranges}

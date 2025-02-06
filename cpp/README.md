@@ -41,11 +41,22 @@ Optional arguments:
 ```
 
 ### Example
- - Download an example data (please email me to gain access) from G-drive 
- - Put data under `../downloads/data/test_pair/test_brain`
+ - Download an example data (please email me to gain access) from G-drive , which contains a 2x2 tiles (100x2000x2000 each tile) of a part of one P4 mouse brain.
+ - Put data under `../downloads/data/test_pair/test_brain`, then the `data` folder should looks like
+```
+.
+└── test_pair
+    └── test_brain
+        ├── UltraII[00 x 00]
+        ├── UltraII[00 x 01]
+        ├── UltraII[01 x 00]
+        └── UltraII[01 x 01]
+            ...
+            └── L ... Z0099.ome.tif
+```
  - Put models under `../downloads/resources`
  - Run the following 
 ```
 mkdir ../downloads/cpp_output
-build_main/main --device cuda:0 -mroot ../downloads/resources -ptag test_pair -btag test_brain -in ../downloads/data -out ../downloads/cpp_output -no_fg_det
+build_main/main --device cuda:0 --chunk_depth 50 -mroot ../downloads/resources -ptag test_pair -btag test_brain -in ../downloads/data -out ../downloads/cpp_output -no_fg_det
 ```
