@@ -63,6 +63,7 @@ std::vector<torch::Tensor> gpu_process(
   torch::Tensor pre_final_yx_flow,
   torch::Tensor pre_last_second,
   std::string device,
+  int64_t bsize,
   std::vector<std::string> bg_img_fns = {}
 ) {
   namespace F = torch::nn::functional;
@@ -85,7 +86,8 @@ std::vector<torch::Tensor> gpu_process(
       // &preproc,
       nis_unet,
       do_fg_filter,
-      device
+      device,
+      bsize
     );
   } else {
     unet_output = loop_unet(
@@ -95,6 +97,7 @@ std::vector<torch::Tensor> gpu_process(
       nis_unet,
       do_fg_filter,
       device,
+      bsize,
       bg_img_fns[0],
       bg_img_fns[1],
       bg_img_fns[2],
@@ -177,6 +180,10 @@ int main(int argc, const char* argv[]) {
     .help("GPU ID")
     .required()
     .default_value(std::string("cuda:0")); 
+  program.add_argument("--batch_size")
+    .help("batch_size")
+    .required()
+    .default_value(std::string("224"));
   program.add_argument("--chunk_depth")
     .help("chunk_depth")
     .required()
@@ -239,7 +246,7 @@ int main(int argc, const char* argv[]) {
   std::string device = program.get<std::string>("--device");
   int64_t chunk_depth = stoi(program.get<std::string>("--chunk_depth"));
   float cellprob_threshold = stof(program.get<std::string>("--cellprob_threshold"));
-
+  int64_t batch_size = stoi(program.get<std::string>("--batch_size"));
   // torch::jit::script::Module get_tile_param;
   // torch::jit::script::Module preproc;
   torch::jit::script::Module nis_unet;
@@ -277,8 +284,8 @@ int main(int argc, const char* argv[]) {
   // std::string mask_dir = "/cajal/ACMUSERS/ziquanw/Lightsheet/roi_mask/"+pair_tag+"/"+brain_tag+"/";
   // std::string savefn_prefix = "/cajal/ACMUSERS/ziquanw/Lightsheet/results/P4/"+pair_tag+"/"+brain_tag+"/"+brain_tag+"_NIScpp_results";
   // std::string remapfn = "/cajal/ACMUSERS/ziquanw/Lightsheet/results/P4/"+pair_tag+"/"+brain_tag+"/"+brain_tag+"_remap.zip";
-  std::string savefn_prefix = save_root+brain_tag+"_NIScpp_results";
-  std::string remapfn = save_root+brain_tag+"_remap.zip";
+  std::string savefn_prefix = save_root+"/"+brain_tag+"_NIScpp_results";
+  std::string remapfn = save_root+"/"+brain_tag+"_remap.zip";
   auto allimgs = listdir_sorted(img_dir);
   // auto allmasks = listdir_sorted(mask_dir);
   std::vector<std::string> img_fns;
@@ -324,7 +331,7 @@ int main(int argc, const char* argv[]) {
     grad_2d_to_3d,
     pre_final_yx_flow,
     pre_last_second,
-    device, bg_img_fns
+    device, batch_size, bg_img_fns
   );
   // torch::Tensor flow3d = gpu_outputs[0];
   pre_final_yx_flow = gpu_outputs[1];
@@ -404,7 +411,7 @@ int main(int argc, const char* argv[]) {
       grad_2d_to_3d,
       pre_final_yx_flow,
       pre_last_second,
-      device, bg_img_fns
+      device, batch_size, bg_img_fns
     );
     pre_last_img = last_img;
     pre_last_flow = last_flow;
