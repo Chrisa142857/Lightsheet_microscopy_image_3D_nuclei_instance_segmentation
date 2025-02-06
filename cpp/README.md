@@ -17,7 +17,6 @@ sh build_main.sh
 
 ### To use
 
- - Download models from G-drive [URL](https://drive.google.com/drive/folders/12YGRtoW4DHftVyhaGoZMl-xdc02Mj9SB?usp=sharing). Only `cuda:0` and `cuda:1` is supported.
  - NIS command line is `build_main/main --help`
 ```
 Usage: main [options] 
@@ -42,7 +41,7 @@ Optional arguments:
 ```
 
 ### Example
- - Download an example data (please email me to gain access) from G-drive , which contains a 2x2 tiles (100x2000x2000 each tile) of a part of one P4 mouse brain.
+ - Download an example data (please email me to gain access) from G-drive [URL](https://drive.google.com/file/d/1mw2DhTRI1UyyMIhL8foRiPjFmTqd-f7T/view?usp=drive_link), which contains a 2x2 tiles (100x2000x2000 each tile) of a part of one P4 mouse brain.
  - Put data under `../downloads/data/test_pair/test_brain`, then the `data` folder should looks like
 ```
 .
@@ -55,6 +54,7 @@ Optional arguments:
             ...
             └── L ... Z0099.ome.tif
 ```
+ - Download models from G-drive [URL](https://drive.google.com/drive/folders/12YGRtoW4DHftVyhaGoZMl-xdc02Mj9SB?usp=sharing). Only `cuda:0` and `cuda:1` is supported.
  - Put models under `../downloads/resource`
  - Run the following. The peak GPU memory usage will be `~16GB`, the peak CPU memory usage will be `~38GB`. Reduce `--chunk_depth` or `--batch_size` if it is still out of CPU or GPU memory, respectively.
 ```
