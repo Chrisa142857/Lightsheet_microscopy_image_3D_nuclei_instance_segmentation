@@ -210,10 +210,11 @@ def get_stitch_tform(
     # btag='220902_L35D719P3_topro_brn2_ctip2_4x_11hdf_0_108na_50sw_4z_20ov_16-41-36',
     ls_image_root = f'/lichtman/Felix/Lightsheet/P4',
     save_path = f'/cajal/ACMUSERS/ziquanw/Lightsheet/stitch_by_ptreg',
-    result_path = f'/cajal/ACMUSERS/ziquanw/Lightsheet/results/P4'
+    result_path = f'/cajal/ACMUSERS/ziquanw/Lightsheet/results/P4',
+    overlap_r=OVERLAP_R
 ):
 
-    overlap_r = OVERLAP_R
+    # overlap_r = OVERLAP_R
     # ls_image_root = f'{ls_image_root}/{ptag}/{btag}'
     # save_path = f'/cajal/ACMUSERS/ziquanw/Lightsheet/stitch_by_ptreg/{ptag}/{btag.split("_")[1]}'
     # result_path = f'/cajal/ACMUSERS/ziquanw/Lightsheet/results/P4/{ptag}/{btag}'

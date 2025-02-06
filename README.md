@@ -11,57 +11,57 @@
 ### Performance and time cost:
  - Recall > 90% 
  - Precision > 90%
- - Time cost ~= **12**hr/brain
+ - Time cost ~= **15**hr/brain
 
 ### Data:
 Multiple whole brains of mouse in different grown stage. Each brain has ~1500x9000x9000 voxels, and about 30,000,000 to 50,000,000 cells.
 
-### Example to test a whole-brain:
+### Example to test one partial brain:
 
-#### 1 Obtain NIS results of one brain
-```
-P_tag=Name the test (e.g., P4)
-pair_tag=Name the brain group
-brain_tag=Name the brain
-dataroot=/path/to/directory/2D_slice_image
-saveroot=/path/to/directory/saving/results/${P_tag}/${pair_tag}/${brain_tag}/
-mkdir -p ${saveroot}
-nohup cpp/build/test ${pair_tag} ${brain_tag} ${device} ${dataroot} ${saveroot} > cpp_logs/${brain_tag}_${P_tag}.log
-```
+#### 1 Obtain NIS results of brain
 
-#### 2 Statistic NIS results and collect all NIS center, coordinates, intensity
-Change paths in `run_whole_brain/statistic_cpp.py`
-```
-device='cuda:X'
-seg_root = 'XXX'
-save_root = 'XXX'
-P_tag = 'XXX'
-brain_tag = 'XXX'
-pair_tag = 'XXX'
-data_root = 'XXX'
-```
-Adjust `img_tags` to get intensity of different image channels.
+Refer to `cpp/README.md`
 
-Then `python run_whole_brain/statistic_cpp.py`. All NIS will be saved to `save_root`.
+#### 2 Postprocess NIS cpp output
 
-#### 2.5 (Optional) Cell type labeling using intensity of different channels
-See `nis_coloc.py`
+`python coord_to_bbox.py [options]` will generate bounding box of NIS in the output folders for stitching.
 
-#### 3 Visualize downsampled whole-brain NIS result
-Similarly, change paths in `brain_render.py`
 ```
-downsample_res = X.X
-seg_res = X.X
-seg_root = 'XXX'
-stat_root = 'XXX'
-save_root = 'XXX'
+usage: coord_to_bbox.py [-h] [--device DEVICE]
+                        [--nis_output_root NIS_OUTPUT_ROOT]
+
+Generate NIS bounding box
+
+optional arguments:
+  -h, --help            show this help message and exit
+  --device DEVICE
+  --nis_output_root NIS_OUTPUT_ROOT
+                        Output dir of NIS cpp
 ```
 
-Then `python brain_render.py`
+#### 3 Image stitch
 
-#### 4 (Optional) Statistic downsampled NIS result in region-level with registered atlas
-See `stats/statistic_nii.py`, `stats/statistic_csv.py`.
+Change paths in `image_stitch/stitch_main.py`, then 
+```
+python image_stitch/stitch_main.py
+```
 
+#### 3.5 (Optional) Refine stitch by point registration
+
+Note that this can lead to a worse stitching result.
+
+Change paths in `image_stitch/ptreg_stitch_p14.py`, then 
+```
+python image_stitch/ptreg_stitch_p14.py
+```
+
+#### 4 Generate brain maps
+
+Go to this [repo](https://github.com/Chrisa142857/napari-whole-brain-map). Do `Non-GUI usage` section.
+
+#### 5 (Optional) Colocalization with additional channels
+
+In working progress.
 
 ### TODO: Interactive visualization of whole brain nuclei segmentation results
  - [ ] Github [page](http://lightsheet-nis.ziquanw.com/).
@@ -73,6 +73,3 @@ See `stats/statistic_nii.py`, `stats/statistic_csv.py`.
 ### Data availability
  - [ ] Train-val data
  - [ ] Test whole brain
-
-### Usage
- - Follow `README` under directories.

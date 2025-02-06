@@ -5,6 +5,9 @@ __pycache__/
 .vscode/
 
 stats/
+run_whole_brain/
+*.backup
+cpp/*.backup
 
 # C extensions
 *.so

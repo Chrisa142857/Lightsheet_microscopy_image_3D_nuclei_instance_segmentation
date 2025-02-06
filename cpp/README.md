@@ -46,6 +46,6 @@ Optional arguments:
  - Put models under `../downloads/resources`
  - Run the following 
 ```
-mkdir ../downloads/output
-build_main/main --device cuda:0 -mroot ../downloads/resources -ptag test_pair -btag test_brain -in ../downloads/data -out ../downloads/output -no_fg_det
+mkdir ../downloads/cpp_output
+build_main/main --device cuda:0 -mroot ../downloads/resources -ptag test_pair -btag test_brain -in ../downloads/data -out ../downloads/cpp_output -no_fg_det
 ```

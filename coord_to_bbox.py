@@ -5,10 +5,17 @@ import torch, os, copy
 from tqdm import trange, tqdm
 
 import nibabel as nib
+import argparse
 
 def main():
-    device = 'cuda:2'
-    r='/cajal/ACMUSERS/ziquanw/Lightsheet/results/P14'                                                                          # Root to NIS results
+    parser = argparse.ArgumentParser(description='Generate NIS bounding box')
+    parser.add_argument('--device', type=str, default='cuda:0')
+    parser.add_argument('--nis_output_root', type=str, default='downloads/cpp_output', help='Output dir of NIS cpp')
+    args = parser.parse_args()
+    device = args.device
+    r = args.nis_output_root
+    # device = 'cuda:2'
+    # r='/cajal/ACMUSERS/ziquanw/Lightsheet/results/P14'                                                                          # Root to NIS results
     # r='/cajal/ACMUSERS/ziquanw/Lightsheet/results/P4'
     # p='pair6'
     # b='220416_L57D855P2_topro_ctip2_brn2_4x_0_108na_50sw_11hdf_4z_09-52-07'
@@ -26,14 +33,14 @@ def main():
     convert coordinate to bounding box
     '''
     for p in os.listdir(r):
-        # if 'pair' not in p: continue
+        # if 'pair' not in p: continue                                                                                            # Add conditions to skip some unexpected folders
         for b in os.listdir(f'{r}/{p}'):
-            if b[0] == 'L': continue                                                                                            # Only loop on expected folders
             if '.' in b: continue                                                                                               # Only loop on folders
-            if b == '220805_L74D769P4_OUT_topro_ctip2_brn2_4x_11hdf_50sw_0_108na_4z_20ov_15-51-36.manyZstitch': continue        # To skip some unexpected folders
+            if b[0] == 'L': continue                                                                                            # Only loop on expected folders
+            if b == '220805_L74D769P4_OUT_topro_ctip2_brn2_4x_11hdf_50sw_0_108na_4z_20ov_15-51-36.manyZstitch': continue        # Add conditions to skip some unexpected folders
             for t in os.listdir(f'{r}/{p}/{b}'):
-                assert 'Ultra' in t, t                                                                                          
-                coord_to_bbox_one_tile(p, b, t, device=device)
+                assert 'Ultra' in t, t                                                                                          # Add conditions to skip some unexpected folders
+                coord_to_bbox_one_tile(r, p, b, t, device=device)
 
     # '''
     # convert binary_mask.zip to binary_mask.nii.gz
@@ -59,8 +66,8 @@ def convert_torch2nii(fn):
     m = m.numpy()
     nib.save(nib.Nifti1Image(m, np.eye(4)), fn.replace('.zip', '.nii.gz'))
 
-def coord_to_bbox_one_tile(ptag='pair4', btag='220904_L35D719P5_topro_brn2_ctip2_4x_0_108na_50sw_11hdf_4z_20ov_21-49-38', tile_name='UltraII[%02d x %02d]', device = 'cuda:1'):
-    result_path = f'/cajal/ACMUSERS/ziquanw/Lightsheet/results/P14/{ptag}/{btag}'
+def coord_to_bbox_one_tile(nis_root, ptag='pair4', btag='220904_L35D719P5_topro_brn2_ctip2_4x_0_108na_50sw_11hdf_4z_20ov_21-49-38', tile_name='UltraII[%02d x %02d]', device = 'cuda:1'):
+    result_path = f'{nis_root}/{ptag}/{btag}'
     # tile_loc = np.array([[int(fn[8:10]), int(fn[-3:-1])] for fn in os.listdir(result_path)])
     # root = result_path + '/UltraII[%02d x %02d]'
     root = f'{result_path}/{tile_name}'
