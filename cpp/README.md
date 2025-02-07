@@ -60,17 +60,17 @@ Optional arguments:
 ```
 mkdir -p "../downloads/cpp_output/test_pair/test_brain/UltraII[00 x 00]"
 
-build_main/main --device cuda:0 --chunk_depth 35 -mroot ../downloads/resource -ptag test_pair -btag test_brain -in "../downloads/data/test_pair/test_brain/UltraII[00 x 00]" -out "../downloads/cpp_output/test_pair/test_brain/UltraII[00 x 00]" -no_fg_det
+build_main/main --device cuda:1 --chunk_depth 35 -mroot ../downloads/resource -ptag test_pair -btag test_brain -in "../downloads/data/test_pair/test_brain/UltraII[00 x 00]" -out "../downloads/cpp_output/test_pair/test_brain/UltraII[00 x 00]" -no_fg_det
 
 mkdir -p "../downloads/cpp_output/test_pair/test_brain/UltraII[00 x 01]"
 
-build_main/main --device cuda:0 --chunk_depth 35 -mroot ../downloads/resource -ptag test_pair -btag test_brain -in "../downloads/data/test_pair/test_brain/UltraII[00 x 01]" -out "../downloads/cpp_output/test_pair/test_brain/UltraII[00 x 01]" -no_fg_det
+build_main/main --device cuda:1 --chunk_depth 35 -mroot ../downloads/resource -ptag test_pair -btag test_brain -in "../downloads/data/test_pair/test_brain/UltraII[00 x 01]" -out "../downloads/cpp_output/test_pair/test_brain/UltraII[00 x 01]" -no_fg_det
 
 mkdir -p "../downloads/cpp_output/test_pair/test_brain/UltraII[01 x 00]"
 
-build_main/main --device cuda:0 --chunk_depth 35 -mroot ../downloads/resource -ptag test_pair -btag test_brain -in "../downloads/data/test_pair/test_brain/UltraII[01 x 00]" -out "../downloads/cpp_output/test_pair/test_brain/UltraII[01 x 00]" -no_fg_det
+build_main/main --device cuda:1 --chunk_depth 35 -mroot ../downloads/resource -ptag test_pair -btag test_brain -in "../downloads/data/test_pair/test_brain/UltraII[01 x 00]" -out "../downloads/cpp_output/test_pair/test_brain/UltraII[01 x 00]" -no_fg_det
 
 mkdir -p "../downloads/cpp_output/test_pair/test_brain/UltraII[01 x 01]"
 
-build_main/main --device cuda:0 --chunk_depth 35 -mroot ../downloads/resource -ptag test_pair -btag test_brain -in "../downloads/data/test_pair/test_brain/UltraII[01 x 01]" -out "../downloads/cpp_output/test_pair/test_brain/UltraII[01 x 01]" -no_fg_det
+build_main/main --device cuda:1 --chunk_depth 35 -mroot ../downloads/resource -ptag test_pair -btag test_brain -in "../downloads/data/test_pair/test_brain/UltraII[01 x 01]" -out "../downloads/cpp_output/test_pair/test_brain/UltraII[01 x 01]" -no_fg_det
 ```

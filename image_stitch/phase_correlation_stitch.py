@@ -211,7 +211,8 @@ def get_stitch_tform(
     ls_image_root = f'/lichtman/Felix/Lightsheet/P4',
     save_path = f'/cajal/ACMUSERS/ziquanw/Lightsheet/stitch_by_ptreg',
     result_path = f'/cajal/ACMUSERS/ziquanw/Lightsheet/results/P4',
-    overlap_r=OVERLAP_R
+    overlap_r=OVERLAP_R,
+    btag_split=True
 ):
 
     # overlap_r = OVERLAP_R
@@ -345,7 +346,11 @@ def get_stitch_tform(
         # print(k, tformed_tile_lt_loc[zstart][k], tform_stack_coarse[k])
         print(k, tform_stack_coarse[k])
 
-    with open(f'{save_path}/NIS_tranform/{btag.split("_")[1]}_tform_coarse.json', 'w', encoding='utf-8') as f:
+    if btag_split:
+        savefn = f'{save_path}/NIS_tranform/{btag.split("_")[1]}_tform_coarse.json'
+    else:
+        savefn = f'{save_path}/NIS_tranform/{btag}_tform_coarse.json'
+    with open(savefn, 'w', encoding='utf-8') as f:
         json.dump(tform_stack_coarse, f, ensure_ascii=False, indent=4)
 
     for k in tqdm(tile_overlap, desc='Apply coarse to img'):
@@ -445,7 +450,11 @@ def get_stitch_tform(
             # tformed_tile_lt_loc_refine[zi][k][0] = tformed_tile_lt_loc_refine[zi][k][0] + tx
             # tformed_tile_lt_loc_refine[zi][k][1] = tformed_tile_lt_loc_refine[zi][k][1] + ty
     
-    with open(f'{save_path}/NIS_tranform/{btag.split("_")[1]}_tform_refine.json', 'w', encoding='utf-8') as f:
+    if btag_split:
+        savefn = f'{save_path}/NIS_tranform/{btag.split("_")[1]}_tform_refine.json'
+    else:
+        savefn = f'{save_path}/NIS_tranform/{btag}_tform_refine.json'
+    with open(savefn, 'w', encoding='utf-8') as f:
         json.dump(tform_stack_refine, f, ensure_ascii=False, indent=4)
 
 
@@ -628,8 +637,12 @@ def fuse_colrow_tform(tform_colrow):
         for i in rows:
             k = f'{i}-{j}'
             if i>0: avg_row.append(np.array(tform_colrow[k])[:, 1])
-        std_row.append(np.stack(avg_row).std(0)[0])
-    do_avg_row = np.mean(std_row) < np.mean(std_col)
+        if len(avg_row) > 0:
+            std_row.append(np.stack(avg_row).std(0)[0])
+    if len(std_row) > 0:
+        do_avg_row = np.mean(std_row) < np.mean(std_col)
+    else:
+        do_avg_row = False
 
     ## accumulate and average
     tform = {}

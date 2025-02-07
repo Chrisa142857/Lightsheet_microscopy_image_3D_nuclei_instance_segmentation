@@ -20,11 +20,15 @@ Multiple whole brains of mouse in different grown stage. Each brain has ~1500x90
 
 #### 1 Obtain NIS results of brain
 
-Refer to `cpp/README.md`
+`cd cpp`, then follow the instruction in `cpp/README.md`.
 
 #### 2 Postprocess NIS cpp output
 
-`python coord_to_bbox.py [options]` will generate bounding box of NIS in the output folders for stitching.
+```
+cd ..
+python coord_to_bbox.py --nis_output_root downloads/cpp_output
+```
+This will generate bounding box of NIS in the output folders for stitching.
 
 ```
 usage: coord_to_bbox.py [-h] [--device DEVICE]
@@ -41,23 +45,23 @@ optional arguments:
 
 #### 3 Image stitch
 
-Change paths in `image_stitch/stitch_main.py`, then 
+Check paths in `image_stitch/stitch_main.py`, then 
 ```
 python image_stitch/stitch_main.py
 ```
 
 #### 3.5 (Optional) Refine stitch by point registration
 
-Note that this can lead to a worse stitching result.
+Note that this optional step can lead to a worse stitching result.
 
-Change paths in `image_stitch/ptreg_stitch_p14.py`, then 
+Check paths in `image_stitch/ptreg_stitch_p14.py`, then 
 ```
 python image_stitch/ptreg_stitch_p14.py
 ```
 
 #### 4 Generate brain maps
 
-Go to this [repo](https://github.com/Chrisa142857/napari-whole-brain-map). Do `Non-GUI usage` section.
+`python gen_brain_map.py` will save a brain map as Nifti under `downloads/cpp_output/test_pair`
 
 #### 5 (Optional) Colocalization with additional channels
 

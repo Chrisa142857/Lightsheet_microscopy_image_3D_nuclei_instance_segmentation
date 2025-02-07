@@ -88,15 +88,15 @@ def coloc(ptag, btag, device='cpu', run_reverse=False):
     # dranges = [[d, d+dinterval] for d in range(grid_dis_to_center.min().long(), grid_dis_to_center.max().long()+1, dinterval)]
     brain_radius = (brain_center**2).sum().sqrt().item()
     log_spaced_values = [0] + list(np.logspace(np.log10(1), np.log10(brain_radius), num=distance_group_n))
-    _dranges = [[brain_radius-log_spaced_values[logi+1], brain_radius-log_spaced_values[logi]] for logi in range(len(log_spaced_values)-1)]
-    dranges = []
-    tile_radius = (torch.FloatTensor(seg_shape)**2).sum().sqrt().item()
-    for dmin, dmax in _dranges:
-        if dmin < tile_radius:
-            dmin = 0
-            dranges.append([0, dmax])    
-            break
-        dranges.append([dmin, dmax])
+    dranges = [[brain_radius-log_spaced_values[logi+1], brain_radius-log_spaced_values[logi]] for logi in range(len(log_spaced_values)-1)]
+    # dranges = []
+    # tile_radius = (torch.FloatTensor(seg_shape)**2).sum().sqrt().item()
+    # for dmin, dmax in _dranges:
+    #     if dmin < tile_radius:
+    #         dmin = 0
+    #         dranges.append([0, dmax])    
+    #         break
+    #     dranges.append([dmin, dmax])
 
     print(dranges)
     print("stack_names, ncol, nrow, whole_brain_shape:\n", stack_names, ncol, nrow, whole_brain_shape)
@@ -111,6 +111,7 @@ def coloc(ptag, btag, device='cpu', run_reverse=False):
 
     brain_c1 = {f'{dmin},{dmax}': {} for dmin, dmax in dranges}
     brain_c2 = {f'{dmin},{dmax}': {} for dmin, dmax in dranges}
+    raw_mean_std_c1 = {}
     nis_avg_items = {}
     for i in col_iterator:
         for j in row_iterator:
@@ -127,29 +128,17 @@ def coloc(ptag, btag, device='cpu', run_reverse=False):
             for img, fn in zip(image_list, fnlist):
                 zi = int(fn.split(' Z')[1][:4])
                 img3d_c1[zi] = np.asarray(img)
-                
-            # '''
-            # Brain depth computation by distance between grid center to brain center 
-            # '''
-            # tile_grid = torch.meshgrid(torch.arange(int(img3d_c1.shape[0]*down_ratio)), torch.arange(int(img3d_c1.shape[1]*down_ratio)), torch.arange(int(img3d_c1.shape[2]*down_ratio)))
-            # tile_grid = torch.stack(tile_grid).to(device)
-            # tile_grid[1] = tile_grid[1] + down_ratio*tile_lt_loc[f'{i}-{j}'][0]
-            # tile_grid[2] = tile_grid[2] + down_ratio*tile_lt_loc[f'{i}-{j}'][1]
-            # tile_grid = tile_grid / down_ratio
-            # grid_dis_to_center = tile_grid - brain_center[:, None, None, None]
-            # grid_dis_to_center = (grid_dis_to_center**2).sum(0).sqrt()#.cpu()
-            # org_grid_dis_to_center = torch.nn.functional.interpolate(grid_dis_to_center[None,None], size=img3d_c1.shape)[0,0]#.to(device)
-
-            img3d_c2 = np.zeros(seg_shape)
-            with Pool(processes=30) as loader_pool:
-                image_list = list(loader_pool.imap(Image.open, tqdm([f'{root}/{fn}' for fn in img_fns if channel2_tag in fn], desc=f'{datetime.now()} Load tiles {i},{j} {channel1_tag}')))
-            fnlist = [fn for fn in img_fns if channel2_tag in fn]
-            for img, fn in zip(image_list, fnlist):
-                zi = int(fn.split(' Z')[1][:4])
-                img3d_c2[zi] = np.asarray(img)
-                
             img3d_c1 = torch.from_numpy(img3d_c1).float()#.to(device)
-            img3d_c2 = torch.from_numpy(img3d_c2).float()#.to(device)
+            raw_mean_std_c1[ijkey] = [img3d_c1.mean(), img3d_c1.std()]
+                
+            # img3d_c2 = np.zeros(seg_shape)
+            # with Pool(processes=30) as loader_pool:
+            #     image_list = list(loader_pool.imap(Image.open, tqdm([f'{root}/{fn}' for fn in img_fns if channel2_tag in fn], desc=f'{datetime.now()} Load tiles {i},{j} {channel1_tag}')))
+            # fnlist = [fn for fn in img_fns if channel2_tag in fn]
+            # for img, fn in zip(image_list, fnlist):
+            #     zi = int(fn.split(' Z')[1][:4])
+            #     img3d_c2[zi] = np.asarray(img)
+            # img3d_c2 = torch.from_numpy(img3d_c2).float()#.to(device)
 
             # print(img3d_c2.max(), img3d_c2.min())
                 
@@ -189,21 +178,21 @@ def coloc(ptag, btag, device='cpu', run_reverse=False):
                     coord = _coord[start:end]#.to(device)
                     # print(coord.max(0), img3d_c1.shape)
                     coord_c1 = img3d_c1[coord[:, 0].long(), coord[:, 1].long(), coord[:, 2].long()].to(device)
-                    coord_c2 = img3d_c2[coord[:, 0].long(), coord[:, 1].long(), coord[:, 2].long()].to(device)
+                    # coord_c2 = img3d_c2[coord[:, 0].long(), coord[:, 1].long(), coord[:, 2].long()].to(device)
                     scatter_ind = _scatter_ind[:len(vol)].repeat_interleave(vol)
                     nis_avg_c1.append(scatter_mean(coord_c1, scatter_ind))
-                    nis_avg_c2.append(scatter_mean(coord_c2, scatter_ind))
+                    # nis_avg_c2.append(scatter_mean(coord_c2, scatter_ind))
                 nis_avg_c1 = torch.cat(nis_avg_c1)
-                nis_avg_c2 = torch.cat(nis_avg_c2)
+                # nis_avg_c2 = torch.cat(nis_avg_c2)
                 nis_dis_bcenter = center - brain_center[None]
                 nis_dis_bcenter = (nis_dis_bcenter**2).sum(1).sqrt()
-                del coord_c1, coord_c2, coord, vol, center
+                # del coord_c1, coord_c2, coord, vol, center
 
                 nis_dis2bcenter.append(nis_dis_bcenter.cpu())
                 nis_avg_c1_ls.append(nis_avg_c1.cpu())
-                nis_avg_c2_ls.append(nis_avg_c2.cpu())
+                # nis_avg_c2_ls.append(nis_avg_c2.cpu())
                 nis_c1_save_fns.append(f"{result_root % (i, j)}/{stack_name.replace('instance_center', f'instance_{channel1_tag}_layer')}")
-                nis_c2_save_fns.append(f"{result_root % (i, j)}/{stack_name.replace('instance_center', f'instance_{channel2_tag}_layer')}")
+                # nis_c2_save_fns.append(f"{result_root % (i, j)}/{stack_name.replace('instance_center', f'instance_{channel2_tag}_layer')}")
 
                 new_b = []
                 for xi in range(b.shape[1]):
@@ -213,10 +202,8 @@ def coloc(ptag, btag, device='cpu', run_reverse=False):
                 binary_mask.append(new_b)
 
             binary_mask = torch.cat(binary_mask+[torch.zeros(seg_shape[0]-bshape, seg_shape[1], seg_shape[2]).bool().to(binary_mask[0].device)])#.to(device_img)
-            # img3d_c1 = img3d_c1.cpu()#.to(device_img)
-            # img3d_c2 = img3d_c2.cpu()#.to(device_img)
-            # print(binary_mask.shape, binary_mask.dtype)
-            nis_avg_items[ijkey]  = [nis_dis2bcenter,nis_avg_c1_ls,nis_avg_c2_ls,nis_c1_save_fns,nis_c2_save_fns]
+            # nis_avg_items[ijkey]  = [nis_dis2bcenter,nis_avg_c1_ls,nis_avg_c2_ls,nis_c1_save_fns,nis_c2_save_fns]
+            nis_avg_items[ijkey]  = [nis_dis2bcenter,nis_avg_c1_ls,nis_c1_save_fns]
             '''
             Run Otsu for every distance to center around NIS via inflate
             '''
@@ -280,11 +267,12 @@ def coloc(ptag, btag, device='cpu', run_reverse=False):
                 #     continue
                 c1 = img3d_c1[loc1, loc2, loc3]#.cpu().numpy()
                 # th_c1 = threshold_otsu(image=c1, nbins=nbins)
-                c2 = img3d_c2[loc1, loc2, loc3]#.cpu().numpy()
+                # c2 = img3d_c2[loc1, loc2, loc3]#.cpu().numpy()
                 # th_c2 = threshold_otsu(image=c2, nbins=nbins)
                 brain_c1[f'{dmin},{dmax}'][ijkey] = c1
-                brain_c2[f'{dmin},{dmax}'][ijkey] = c2
-                print('Store pixels', c1.shape, c1.max(), c1.min(), c2.shape, c2.max(), c2.min())
+                # brain_c2[f'{dmin},{dmax}'][ijkey] = c2
+                # print('Store pixels', c1.shape, c1.max(), c1.min(), c2.shape, c2.max(), c2.min())
+                print(datetime.now(), 'Store pixels', c1.shape, c1.max(), c1.min())
             #     print(c1.shape, th_c1, th_c2)
                 # fg_mask_c1[torch.logical_and(torch.logical_and(img3d_c1>th_c1, dmask), binary_mask)] = True
                 # fg_mask_c2[torch.logical_and(torch.logical_and(img3d_c2>th_c2, dmask), binary_mask)] = True
@@ -292,40 +280,42 @@ def coloc(ptag, btag, device='cpu', run_reverse=False):
                 # th_c1s[th_k] = th_c1
                 # th_c2s[th_k] = th_c2
     th_c1_dict = {}
-    th_c2_dict = {}
+    # th_c2_dict = {}
     for dkey in brain_c1:
         if len(brain_c1[dkey]) == 0: continue
         c1 = torch.cat(list(brain_c1[dkey].values())).cpu().numpy()
         th_c1 = threshold_otsu(image=c1, nbins=nbins)
-        c2 = torch.cat(list(brain_c2[dkey].values())).cpu().numpy()
-        th_c2 = threshold_otsu(image=c2, nbins=nbins)
+        # c2 = torch.cat(list(brain_c2[dkey].values())).cpu().numpy()
+        # th_c2 = threshold_otsu(image=c2, nbins=nbins)
         th_c1_dict[dkey] = th_c1
-        th_c2_dict[dkey] = th_c2
-    del brain_c1, brain_c2
+        # th_c2_dict[dkey] = th_c2
+    del brain_c1#, brain_c2
 
     for i in col_iterator:
         for j in row_iterator:
             nis_c1_label_dict = {}
             nis_c2_label_dict = {}
-            nis_dis2bcenter, nis_avg_c1_ls, nis_avg_c2_ls, nis_c1_save_fns, nis_c2_save_fns = nis_avg_items[ijkey]
-            for nis_dis_bcenter, nis_avg_c1, nis_avg_c2, nis_c1_save_fn, nis_c2_save_fn in zip(nis_dis2bcenter, nis_avg_c1_ls, nis_avg_c2_ls, nis_c1_save_fns, nis_c2_save_fns):
+            # nis_dis2bcenter, nis_avg_c1_ls, nis_avg_c2_ls, nis_c1_save_fns, nis_c2_save_fns = nis_avg_items[ijkey]
+            nis_dis2bcenter, nis_avg_c1_ls, nis_c1_save_fns = nis_avg_items[ijkey]
+            # for nis_dis_bcenter, nis_avg_c1, nis_avg_c2, nis_c1_save_fn, nis_c2_save_fn in zip(nis_dis2bcenter, nis_avg_c1_ls, nis_avg_c2_ls, nis_c1_save_fns, nis_c2_save_fns):
+            for nis_dis_bcenter, nis_avg_c1, nis_c1_save_fn in zip(nis_dis2bcenter, nis_avg_c1_ls, nis_c1_save_fns):
                 for dkey in th_c1_dict:
                     dmin, dmax = dkey.split(',')
                     dmin, dmax = float(dmin), float(dmax)
                     nismask = torch.logical_and(nis_dis_bcenter >= dmin, nis_dis_bcenter < dmax)#.cpu()
                     if nis_c1_save_fn not in nis_c1_label_dict: 
                         nis_c1_label_dict[nis_c1_save_fn] = torch.zeros(len(nis_dis_bcenter)).bool().to(device)
-                        nis_c2_label_dict[nis_c2_save_fn] = torch.zeros(len(nis_dis_bcenter)).bool().to(device)
+                        # nis_c2_label_dict[nis_c2_save_fn] = torch.zeros(len(nis_dis_bcenter)).bool().to(device)
 
                     nis_c1_label_dict[nis_c1_save_fn][nismask] = nis_avg_c1[nismask] > th_c1
-                    nis_c2_label_dict[nis_c2_save_fn][nismask] = nis_avg_c2[nismask] > th_c2
+                    # nis_c2_label_dict[nis_c2_save_fn][nismask] = nis_avg_c2[nismask] > th_c2
             
             for nis_c1_save_fn in nis_c1_label_dict:
                 print('Saving', nis_c1_save_fn)
                 torch.save(nis_c1_label_dict[nis_c1_save_fn].detach().cpu(), nis_c1_save_fn)
-            for nis_c2_save_fn in nis_c2_label_dict:
-                print('Saving', nis_c2_save_fn)
-                torch.save(nis_c2_label_dict[nis_c2_save_fn].detach().cpu(), nis_c2_save_fn)
+            # for nis_c2_save_fn in nis_c2_label_dict:
+            #     print('Saving', nis_c2_save_fn)
+            #     torch.save(nis_c2_label_dict[nis_c2_save_fn].detach().cpu(), nis_c2_save_fn)
 
             # intensity_diff = img3d_c1 - img3d_c2
             # intensity_diff = torch.from_numpy(intensity_diff).float()

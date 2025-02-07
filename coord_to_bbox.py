@@ -82,12 +82,13 @@ def coord_to_bbox_one_tile(nis_root, ptag='pair4', btag='220904_L35D719P5_topro_
         bboxfn = f"{root}/{stack_name.replace('instance_center', 'instance_bbox')}"
         coordfn = f"{root}/{stack_name.replace('instance_center', 'instance_coordinate')}"
         volfn = f"{root}/{stack_name.replace('instance_center', 'instance_volume')}"
-        if not os.path.exists(bboxfn) and os.path.exists(coordfn):
+        if os.path.exists(coordfn):
             _vol = torch.load(volfn).long()
             _coord = torch.load(coordfn)
             print(f'{datetime.now()}: Get bounding box of NIS of tile {tile_name} {stack_name}')
             bbox = coord_to_bbox(_coord, _vol.to(device), device).cpu()
             print(f'{datetime.now()}: Done with {len(bbox)} bboxes')
+            print(datetime.now(), 'Saving', bboxfn)
             torch.save(bbox, bboxfn)
 
 
