@@ -1,40 +1,32 @@
-python analysis_nis_shape.py 0-0 &
-sleep 60
-python analysis_nis_shape.py 0-1 &
-sleep 60
-python analysis_nis_shape.py 0-2 &
-sleep 60
-python analysis_nis_shape.py 0-3 &
-sleep 60
-python analysis_nis_shape.py 0-4 &
-sleep 60
-python analysis_nis_shape.py 1-0 &
-sleep 60
-python analysis_nis_shape.py 1-1 &
-sleep 60
-python analysis_nis_shape.py 1-2 &
-sleep 60
-python analysis_nis_shape.py 1-3 &
-sleep 60
-python analysis_nis_shape.py 1-4 &
-sleep 60
-python analysis_nis_shape.py 2-0 &
-sleep 60
-python analysis_nis_shape.py 2-1 &
-sleep 60
-python analysis_nis_shape.py 2-2 &
-sleep 60
-python analysis_nis_shape.py 2-3 &
-sleep 60
-python analysis_nis_shape.py 2-4 &
-sleep 60
-python analysis_nis_shape.py 3-0 &
-sleep 60
-python analysis_nis_shape.py 3-1 &
-sleep 60
-python analysis_nis_shape.py 3-2 &
-sleep 60
-python analysis_nis_shape.py 3-3 &
-sleep 60
-python analysis_nis_shape.py 3-4 &
-
+## ssh yukon
+conda activate wholeBrain
+cd /ram/USERS/ziquanw/Lightsheet_microscopy_image_3D_nuclei_instance_segmentation
+python analysis_nis_shape.py --gtag P14 --ptag male --btag L82D711P2 --device cuda:0
+python analysis_nis_shape.py --gtag P14 --ptag male --btag L82D711P3 --device cuda:1
+python analysis_nis_shape.py --gtag P14 --ptag female --btag L86P4 --device cuda:2
+python analysis_nis_shape.py --gtag P14 --ptag male --btag L87D868P2 --device cuda:3
+## ssh hummer
+conda activate pyg24
+cd /ram/USERS/ziquanw/Lightsheet_microscopy_image_3D_nuclei_instance_segmentation
+python analysis_nis_shape.py --gtag P14 --ptag male --btag L87P1 --device cuda:4
+python analysis_nis_shape.py --gtag P14 --ptag male --btag L88P1 --device cuda:5
+python analysis_nis_shape.py --gtag P14 --ptag male --btag L88P2 --device cuda:6
+python analysis_nis_shape.py --gtag P14 --ptag female --btag L88P3 --device cuda:7
+python analysis_nis_shape.py --gtag P14 --ptag female --btag L88P4 --device cuda:0
+python analysis_nis_shape.py --gtag P14 --ptag female --btag L90P3 --device cuda:1
+python analysis_nis_shape.py --gtag P14 --ptag male --btag L92P2 --device cuda:2
+python analysis_nis_shape.py --gtag P14 --ptag female --btag L92P3 --device cuda:3
+###
+python analysis_nis_shape.py --gtag P14 --ptag female --btag L92P4 --device cuda:4
+python analysis_nis_shape.py --gtag P14 --ptag male --btag L94P1 --device cuda:5
+##
+python analysis_nis_shape.py --gtag P14 --ptag female --btag L94P3sox9toproneun --device cuda:6 &
+python analysis_nis_shape.py --gtag P14 --ptag female --btag L94P4 --device cuda:7
+python analysis_nis_shape.py --gtag P14 --ptag male --btag L95P2 --device cuda:0 &
+python analysis_nis_shape.py --gtag P14 --ptag female --btag L95P3 --device cuda:1 &
+python analysis_nis_shape.py --gtag P14 --ptag female --btag L95P4 --device cuda:2 &
+python analysis_nis_shape.py --gtag P14 --ptag female --btag L96P3 --device cuda:3 &
+python analysis_nis_shape.py --gtag P14 --ptag extrabrains --btag L97P1 --device cuda:4 &
+python analysis_nis_shape.py --gtag P14 --ptag extrabrains --btag L97P2 --device cuda:5 &
+python analysis_nis_shape.py --gtag P14 --ptag female --btag L106P3 --device cuda:6 &
+python analysis_nis_shape.py --gtag P14 --ptag female --btag L106P5 --device cuda:7 

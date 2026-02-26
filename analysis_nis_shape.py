@@ -1,13 +1,27 @@
+import argparse
+
 import torch, os, sys
 import numpy as np
 import SimpleITK as sitk
 from datetime import datetime
 from tqdm import trange, tqdm
 import random
-from multiprocessing import Pool
+# from multiprocessing import Pool
 
-gtag = 'P4'
-STAT_ROOT = f'/cajal/ACMUSERS/ziquanw/Lightsheet/results/{gtag}_morphology'
+parser = argparse.ArgumentParser(description='None')
+parser.add_argument('--gtag')
+parser.add_argument('--ptag')
+parser.add_argument('--btag')
+# parser.add_argument('--ttag')
+parser.add_argument('--device')
+args = parser.parse_args()
+pair_tag = args.ptag
+brain_tag = args.btag
+gtag = args.gtag
+# tilekey = args.ttag
+device = args.device
+
+# STAT_ROOT = f'/cajal/ACMUSERS/ziquanw/Lightsheet/results/{gtag}_morphology'
 r = f'/cajal/ACMUSERS/ziquanw/Lightsheet/image_before_stitch/{gtag}'
 pbtag_ls = []
 for ptag in os.listdir(r):
@@ -16,20 +30,17 @@ for ptag in os.listdir(r):
 pbtag_ls = list(reversed(pbtag_ls))
 
 def main():
-    img_tags = ['C1_', 'C2_','C3_']
-    pair_tag = 'pair21'
-    brain_tag = 'L91D814P6'
-    get_pa(pair_tag, brain_tag, None if len(sys.argv)==1 else sys.argv[1])
+    get_pa(pair_tag, brain_tag)
 
 
 def get_pa(pair_tag, brain_tag, tgt_ijkey=None):
-    device = 'cuda:0'
     for ptag, btag in pbtag_ls[4:]:
         if btag.split('_')[1] == brain_tag: break
+    assert ptag == pair_tag
     print(ptag, btag, brain_tag)
     # print(datetime.now(), f"Loading {pair_tag} {brain_tag}")
     root, result_root, stack_names, tile_lt_loc, seg_shape, whole_brain_shape = brain_shape_tile_location(pair_tag, btag)
-    print(result_root)
+    # print(result_root)
     # col_iterator = range(ncol)
     # row_iterator = range(nrow)
     # col_iterator = [2]
@@ -37,10 +48,10 @@ def get_pa(pair_tag, brain_tag, tgt_ijkey=None):
     # col_iterator = [2]
     # row_iterator = [0,4]
     # sample_num = 50
-    lrange = 1000
+    # lrange = 1000
     zratio = 2.5/4
-    down_res = 25
-    down_r = torch.FloatTensor([4/down_res, .75/down_res, .75/down_res]).to(device)
+    # down_res = 25
+    # down_r = torch.FloatTensor([4/down_res, .75/down_res, .75/down_res]).to(device)
     # zstitch_remap_dict = {}
     # for ijkey in tile_lt_loc:
     #     i, j = ijkey.split('-')
@@ -51,32 +62,28 @@ def get_pa(pair_tag, brain_tag, tgt_ijkey=None):
         i, j = ijkey.split('-')
         _i, _j = int(i), int(j)
         if tgt_ijkey is not None and tgt_ijkey != ijkey: continue
-        savefn = f"{result_root % (_i, _j)}/{btag.split('_')[1]}_pa.zip"
+        # savefn = f"{result_root % (_i, _j)}/{btag.split('_')[1]}_pa.zip"
         # tx, ty = tile_lt_loc[ijkey]
         # tx, ty = int(tx), int(ty)
         # stat_root = f"{STAT_ROOT}/{pair_tag}"
         print(datetime.now(), f'Processing tile {ijkey}')
         # zstitch_remap = zstitch_remap_dict[ijkey]
-        all_pa_list = []
-        nis_id_list = []
         # center_list = []
         pre_num = 0
         for stack_name in stack_names:
-            # savefn = f"{result_root % (_i, _j)}/{stack_name.replace('instance_center', 'instance_pa')}"
             if not os.path.exists(f"{result_root % (_i, _j)}/{stack_name}"): continue
+            savefn = f"{result_root % (_i, _j)}/{stack_name.replace('instance_center', 'instance_pa')}"
+            savefn = savefn.replace('/cajal', '/scheibel')
+            os.makedirs(os.path.dirname(savefn), exist_ok=True)
             zstart = int(stack_name.split('zmin')[1].split('_')[0])
             zstart = int(zstart*zratio)
             
             centerfn = f"{result_root % (_i, _j)}/{stack_name}"
             center = torch.load(centerfn).long().to(device)
             center[:, 0] = center[:, 0] * zratio + zstart
-            down_center = (down_r[None] * center).long()
-            dshape = (down_center.max(0)[0]+1).tolist()
-            down_loc = torch.arange(dshape[0]*dshape[1]*dshape[2]).view(dshape[0], dshape[1], dshape[2]).to(device) 
-            all_loc = down_loc[down_center[:, 0], down_center[:, 1], down_center[:, 2]]
 
-            # labelfn = f"{result_root % (_i, _j)}/{stack_name.replace('instance_center', 'instance_label')}"
-            # label = torch.load(labelfn).long().to(device)
+            labelfn = f"{result_root % (_i, _j)}/{stack_name.replace('instance_center', 'instance_label')}"
+            label = torch.load(labelfn).long().to(device)
 
             volfn = f"{result_root % (_i, _j)}/{stack_name.replace('instance_center', 'instance_volume')}"
             total_vol = torch.load(volfn).long().to(device)
@@ -87,19 +94,30 @@ def get_pa(pair_tag, brain_tag, tgt_ijkey=None):
 
             splits = total_vol.cumsum(0)
 
-            nis_id_loc = []
-            for loc in all_loc.unique():
-                loc_id = torch.where(all_loc==loc)[0].tolist()
-                random.shuffle(loc_id)
-                nis_id_loc.extend(loc_id[:min(len(loc_id), 5)])
-            nis_uni_loc_mask = torch.zeros_like(total_vol).bool()
-            nis_uni_loc_mask[nis_id_loc] = True
-            print(datetime.now(), f"Processing {len(nis_id_loc)} / {len(total_vol)} NIS")
+            ## Random downsampling
+            # down_center = (down_r[None] * center).long()
+            # dshape = (down_center.max(0)[0]+1).tolist()
+            # down_loc = torch.arange(dshape[0]*dshape[1]*dshape[2]).view(dshape[0], dshape[1], dshape[2]).to(device) 
+            # all_loc = down_loc[down_center[:, 0], down_center[:, 1], down_center[:, 2]]
+            # nis_id_loc = []
+            # for loc in all_loc.unique():
+            #     loc_id = torch.where(all_loc==loc)[0].tolist()
+            #     random.shuffle(loc_id)
+            #     nis_id_loc.extend(loc_id[:min(len(loc_id), 5)])
+            # nis_uni_loc_mask = torch.zeros_like(total_vol).bool()
+            # nis_uni_loc_mask[nis_id_loc] = True
+            ############
+            # print(datetime.now(), f"Processing {len(nis_id_loc)} / {len(total_vol)} NIS")
+            all_pa_list = []
+            nis_id_list = []
+            print(datetime.now(), f"Processing {len(total_vol)} NIS")
             for vol in tqdm(total_vol.unique(), desc=f'Looping unique volume in tile {ijkey}'):
-                # if vi not in nis_id_loc: continue
+                if vol < 30: continue
                 vol_mask = total_vol==vol
-                nis_id = torch.where(torch.logical_and(vol_mask, nis_uni_loc_mask))[0]
-                nis_id_list.extend((nis_id+pre_num).tolist())
+                # nis_id = torch.where(torch.logical_and(vol_mask, nis_uni_loc_mask))[0]
+                nis_id = torch.where(vol_mask)[0]
+                nis_id_list.append(label[nis_id])
+                # nis_id_list.extend((nis_id+pre_num).tolist())
                 # center_list.append(center[nis_id].cpu())
                 #####################################################
                 if len(nis_id) == 0: continue
@@ -169,9 +187,12 @@ def get_pa(pair_tag, brain_tag, tgt_ijkey=None):
                 # avg_frame = frames.mean(0)[0]
                 # print(datetime.now(), "Done rotate frames, return avg", avg_frame.shape)
                 all_pa_list.append(all_pa.cpu())
-            pre_num = len(total_vol)
-        print(datetime.now(), f"Saving {len(nis_id_list)} PA vectors")
-        torch.save({'PA': torch.cat(all_pa_list),'selected_nis_index': torch.LongTensor(nis_id_list)}, savefn)
+            # pre_num = len(total_vol)
+            nis_id_list = torch.cat(nis_id_list)
+            all_pa_list = torch.cat(all_pa_list)
+            print(datetime.now(), f"Saving {len(nis_id_list)} PA vectors")
+            torch.save({'PA': all_pa_list,'NIS_label': nis_id_list}, savefn)
+        # torch.save(torch.cat(all_pa_list), savefn)
 
 def itk_pa(frame):
     filter_label = sitk.LabelShapeStatisticsImageFilter()
@@ -193,8 +214,20 @@ def brain_shape_tile_location(ptag, btag):
     assert os.path.exists(root), root
     result_path = f'/cajal/ACMUSERS/ziquanw/Lightsheet/results/{gtag}/{ptag}/{btag}'
     result_root = result_path + '/UltraII[%02d x %02d]'
-    stack_names = [f for f in os.listdir(result_root % (0, 0)) if f.endswith('instance_center.zip')]
+    # stack_names = [f for f in os.listdir(result_root % (0, 0)) if f.endswith('instance_center.zip')]
+    
+    
+    stack_names = None
+    for tile_fn in os.listdir(result_path):
+        if not tile_fn.startswith('UltraII'): continue
+        if stack_names is None:
+            stack_names = [f for f in os.listdir(f'{result_path}/{tile_fn}') if f.endswith('instance_center.zip')]
+        
+        pstack_names = [f for f in os.listdir(f'{result_path}/{tile_fn}') if f.endswith('instance_center.zip')]
+        if len(pstack_names) > len(stack_names): stack_names = pstack_names
+        
     stack_names = sort_stackname(stack_names)
+    
     meta_name = stack_names[0].replace('instance_center', 'seg_meta')
     seg_shape = torch.load(f'{result_root % (0, 0)}/{meta_name}')
     tile_loc = np.array([[int(fn[8:10]), int(fn[-3:-1])] for fn in os.listdir(result_path) if 'UltraII' in fn])
