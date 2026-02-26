@@ -86,13 +86,13 @@ class EMRegistration(object):
     """
 
     def __init__(self, X, Y, device, sigma2=None, max_iterations=None, tolerance=None, w=None, *args, **kwargs):
-        if type(X) is not np.ndarray or X.ndim != 2:
-            raise ValueError(
-                "The target point cloud (X) must be at a 2D tensor array.")
+        # if type(X) is not np.ndarray or X.ndim != 2:
+        #     raise ValueError(
+        #         "The target point cloud (X) must be at a 2D tensor array.")
 
-        if type(Y) is not np.ndarray or Y.ndim != 2:
-            raise ValueError(
-                "The source point cloud (Y) must be a 2D numpy array.")
+        # if type(Y) is not np.ndarray or Y.ndim != 2:
+        #     raise ValueError(
+        #         "The source point cloud (Y) must be a 2D numpy array.")
 
         if X.shape[1] != Y.shape[1]:
             raise ValueError(

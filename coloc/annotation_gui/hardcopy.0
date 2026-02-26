@@ -1,0 +1,45 @@
+     6832993
+     6832994
+     6832996
+     6832997
+     6832998
+     6833000
+     6833001
+     6833002
+     6833004
+     6833007
+     6833008
+     6833009
+     6833010
+     6833011
+     6833012
+
+>> index=find(ann.annotations==16002);
+MATLAB has lost its connection to the license server.
+MATLAB will make 5 more reconnection attempt(s) and then exit. Any unsaved changes will be lost.
+
+
+>> length(index);
+>> length(index)
+
+ans =
+
+     5506307
+
+>> ann
+
+ann =
+
+  struct with fields:
+
+      sample_id: 'L35D719P1'
+          group: ["P4"    "HET"]
+    sample_data: [1x1 struct]
+     reg_params: [1x1 struct]
+         I_mask: [273x206x286 single]
+      centroids: [11779366x3 double]
+    annotations: [11779366x1 double]
+        classes: [11779366x1 double]
+        summary: [1x1 struct]
+
+>> ann.classes

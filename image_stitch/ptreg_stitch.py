@@ -16,7 +16,7 @@ from torch_scatter import scatter_max
 from cpd_translation import RigidRegistration
 from get_bbox_apply_tform import get_bbox_with_tform
 
-ZRANGE = 15
+# ZRANGE = 15
 OVERLAP_R = 0.15
 zratio = 2.5/4 # hard-coded in NIS cpp
 
@@ -96,15 +96,18 @@ def stitch_by_ptreg(stitch_tile_ij, stitch_slice_ranges,
     device = 'cuda:3',
     save_path = None,
     result_path = None,
+    overlap_r = OVERLAP_R,
+    ZRANGE = 15
 ):    
     # save_path = f'/cajal/ACMUSERS/ziquanw/Lightsheet/stitch_by_ptreg/{ptag}/{btag.split("_")[1]}',
     # result_path = f'/cajal/ACMUSERS/ziquanw/Lightsheet/results/P4/{ptag}/{btag}',
     
-    overlap_r = OVERLAP_R
+    # overlap_r = OVERLAP_R
 
     root = result_path + '/UltraII[%02d x %02d]'
     tile_loc = np.array([[int(fn[8:10]), int(fn[-3:-1])] for fn in os.listdir(result_path) if 'Ultra' in fn])
     ncol, nrow = tile_loc.max(0)+1
+    print(datetime.now(), f'{btag} has [{ncol} x {nrow}]')
     assert len(tile_loc) == nrow*ncol, f'tile of raw data is not complete, tile location: {tile_loc}'
     stack_names = [f for f in os.listdir(root % (0, 0)) if f.endswith('instance_center.zip')]
     stack_names = sort_stackname(stack_names)

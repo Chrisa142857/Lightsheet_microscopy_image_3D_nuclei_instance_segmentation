@@ -34,6 +34,7 @@ def main():
     '''
     for p in os.listdir(r):
         # if 'pair' not in p: continue                                                                                            # Add conditions to skip some unexpected folders
+        if 'densitymap' in p: continue
         for b in os.listdir(f'{r}/{p}'):
             if '.' in b: continue                                                                                               # Only loop on folders
             if b[0] == 'L': continue                                                                                            # Only loop on expected folders
@@ -82,7 +83,7 @@ def coord_to_bbox_one_tile(nis_root, ptag='pair4', btag='220904_L35D719P5_topro_
         bboxfn = f"{root}/{stack_name.replace('instance_center', 'instance_bbox')}"
         coordfn = f"{root}/{stack_name.replace('instance_center', 'instance_coordinate')}"
         volfn = f"{root}/{stack_name.replace('instance_center', 'instance_volume')}"
-        if os.path.exists(coordfn):
+        if os.path.exists(coordfn) and not os.path.exists(bboxfn):
             _vol = torch.load(volfn).long()
             _coord = torch.load(coordfn)
             print(f'{datetime.now()}: Get bounding box of NIS of tile {tile_name} {stack_name}')

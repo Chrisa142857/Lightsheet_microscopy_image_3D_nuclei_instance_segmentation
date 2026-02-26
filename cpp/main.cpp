@@ -58,6 +58,7 @@ std::vector<torch::Tensor> gpu_process(
   // torch::jit::script::Module preproc, 
   torch::jit::script::Module* nis_unet, 
   bool do_fg_filter,
+  bool anisotropic,
   // torch::jit::script::Module interpolater,
   torch::jit::script::Module grad_2d_to_3d,
   torch::Tensor pre_final_yx_flow,
@@ -86,6 +87,7 @@ std::vector<torch::Tensor> gpu_process(
       // &preproc,
       nis_unet,
       do_fg_filter,
+      anisotropic,
       device,
       bsize
     );
@@ -96,6 +98,7 @@ std::vector<torch::Tensor> gpu_process(
       // &preproc,
       nis_unet,
       do_fg_filter,
+      anisotropic,
       device,
       bsize,
       bg_img_fns[0],
@@ -113,8 +116,12 @@ std::vector<torch::Tensor> gpu_process(
     input_resolution = (4, .75, .75)
   */
   flow2d = flow2d.permute({3, 0, 1 ,2});
-  flow2d = F::interpolate(flow2d.unsqueeze(0),
-    F::InterpolateFuncOptions().scale_factor(std::vector<double>({4/2.5, 1, 1})).mode(torch::kNearestExact).align_corners(false).recompute_scale_factor(false)).squeeze();
+  
+  if (anisotropic) {
+    flow2d = F::interpolate(flow2d.unsqueeze(0),
+      F::InterpolateFuncOptions().scale_factor(std::vector<double>({4/2.5, 1, 1})).mode(torch::kNearestExact).align_corners(false).recompute_scale_factor(false));
+    flow2d = flow2d[0];
+  }
   // std::vector<torch::jit::IValue> inter_inputs({flow2d});
   // flow2d = interpolater(inter_inputs).toTensor();
   /*
@@ -196,16 +203,20 @@ int main(int argc, const char* argv[]) {
     .help("path to .pt models")
     .required()
     .default_value(std::string("/ram/USERS/ziquanw/Lightsheet_microscopy_image_3D_nuclei_instance_segmentation/downloads/resource")); 
-  program.add_argument("-ptag", "--pair_tag")
-    .help("pair_tag")
+  program.add_argument("-zmin", "--zslice_min")
+    .help("zslice_min")
     .required()
-    .default_value(std::string("4")); 
+    .default_value(std::string("0")); 
   program.add_argument("-btag", "--brain_tag")
-    .help("brain_tag")
+    .help("a brain_tag as saving filename prefix")
     .required()
     .default_value(std::string("100")); 
+  program.add_argument("-fntag", "--filename_tag")
+    .help("tag used to filter the filename.")
+    .required()
+    .default_value(std::string("_C1_"));
   program.add_argument("-in", "--data_root")
-    .help("specify the data_root.")
+    .help("specify the data_root, where filename is sorted by slice index.")
     .required()
     .default_value(std::string("./outputs/"));
   program.add_argument("-out", "--save_root")
@@ -232,6 +243,10 @@ int main(int argc, const char* argv[]) {
     .help("skip foreground_detection")
     .default_value(false)
     .implicit_value(true); 
+  program.add_argument("-iso", "--isotropic")
+    .help("if resolution is isotropic")
+    .default_value(false)
+    .implicit_value(true); 
   
   try {
     program.parse_args(argc, argv);
@@ -244,6 +259,7 @@ int main(int argc, const char* argv[]) {
   }
 
   std::string device = program.get<std::string>("--device");
+  int64_t zslice_min = stoi(program.get<std::string>("--zslice_min"));
   int64_t chunk_depth = stoi(program.get<std::string>("--chunk_depth"));
   float cellprob_threshold = stof(program.get<std::string>("--cellprob_threshold"));
   int64_t batch_size = stoi(program.get<std::string>("--batch_size"));
@@ -266,11 +282,13 @@ int main(int argc, const char* argv[]) {
   flow_3DtoSeed = torch::jit::load(program.get<std::string>("--model_root")+"/flow_3DtoSeed.pt");
   // std::string pair_tag = "pair15";
   // std::string brain_tag = "L73D766P4";
-  std::string pair_tag = program.get<std::string>("--pair_tag");
+  std::string fn_tag = program.get<std::string>("--filename_tag");
+  // std::string pair_tag = program.get<std::string>("--pair_tag");
   std::string brain_tag = program.get<std::string>("--brain_tag");
   std::string data_root = program.get<std::string>("--data_root");
   std::string save_root = program.get<std::string>("--save_root");
   bool do_fg_filter = !program.get<bool>("--no_foreground_detection");
+  bool anisotropic = !program.get<bool>("--isotropic");
   std::vector<std::string> bg_img_fns = {};
   if (do_fg_filter){
     bg_img_fns.push_back(program.get<std::string>("--lt_corner_image_path"));
@@ -291,7 +309,7 @@ int main(int argc, const char* argv[]) {
   std::vector<std::string> img_fns;
   // std::vector<std::string> mask_fns;
   for (std::string file : allimgs ) {
-    if (file.find("_C1_") != std::string::npos) {
+    if (file.find(fn_tag) != std::string::npos) {
       img_fns.push_back(file);
     }
   }
@@ -327,6 +345,7 @@ int main(int argc, const char* argv[]) {
     // preproc, 
     &nis_unet, 
     do_fg_filter,
+    anisotropic,
     // interpolater,
     grad_2d_to_3d,
     pre_final_yx_flow,
@@ -407,6 +426,7 @@ int main(int argc, const char* argv[]) {
       // preproc, 
       &nis_unet, 
       do_fg_filter,
+      anisotropic,
       // interpolater,
       grad_2d_to_3d,
       pre_final_yx_flow,

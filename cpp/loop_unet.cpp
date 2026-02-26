@@ -7,6 +7,7 @@ std::vector<torch::Tensor> loop_unet(
     // torch::jit::script::Module* preproc,
     torch::jit::script::Module* nis_unet,
     bool do_fg_filter,
+    bool anisotropic,
     std::string device,
     int64_t batch_size,
     std::string lefttop_fn,
@@ -99,11 +100,13 @@ std::vector<torch::Tensor> loop_unet(
         // Pre-process image
         // img = preproc_image(img);
         img = torch::cat({img, torch::zeros_like(img)});
-        img = F::interpolate(
-            img.unsqueeze(0), 
-            F::InterpolateFuncOptions().scale_factor(std::vector<double>({1.437293, 1.437293})).mode(torch::kBilinear).align_corners(false).recompute_scale_factor(true)
-        );
-        img = img[0];
+        if (anisotropic) {
+            img = F::interpolate(
+                img.unsqueeze(0), 
+                F::InterpolateFuncOptions().scale_factor(std::vector<double>({1.437293, 1.437293})).mode(torch::kBilinear).align_corners(false).recompute_scale_factor(true)
+            );
+            img = img[0];
+        }
         // torch::Tensor area = torch::tensor(org_img_shape[1] * org_img_shape[2]);
         std::vector<torch::jit::IValue> inputs;
         // inputs.push_back(img);
@@ -194,12 +197,15 @@ std::vector<torch::Tensor> loop_unet(
                .slice(2, 0, img_shape[2]);
         yf = yf.slice(1, pad_ysub[0].item<int64_t>(), pad_ysub[-1].item<int64_t>()+1)
                .slice(2, pad_xsub[0].item<int64_t>(), pad_xsub[-1].item<int64_t>()+1);
-               
-        yf = F::interpolate(
-            yf.unsqueeze(0), 
-            F::InterpolateFuncOptions().size(std::vector<int64_t>({org_img_shape[1], org_img_shape[2]})).mode(torch::kBilinear).align_corners(false)
-        );
-        yf = torch::permute(yf[0], {1, 2, 0});
+        
+        if (anisotropic) {
+            yf = F::interpolate(
+                yf.unsqueeze(0), 
+                F::InterpolateFuncOptions().size(std::vector<int64_t>({org_img_shape[1], org_img_shape[2]})).mode(torch::kBilinear).align_corners(false)
+            );
+            yf = yf[0];
+        }
+        yf = torch::permute(yf, {1, 2, 0});
         flow2d_list.push_back(yf.detach().cpu());
     }
     torch::Tensor flow2d = torch::stack(flow2d_list, 0);

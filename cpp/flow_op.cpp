@@ -9,26 +9,26 @@ std::vector<torch::Tensor> get_large_fg_coord(torch::Tensor seg) {
         meshgrid_tensors.push_back(torch::arange(seg_shape[dimi], options));
     }
 
-    print_with_time("Start meshgrid");
+    print_with_time("Start meshgrid\n");
     auto meshgrid_output = torch::meshgrid(meshgrid_tensors);
     torch::Tensor meshgrid_coord;
-    print_with_time("Done meshgrid, start mask seg fg");
+    print_with_time("Done meshgrid, start mask seg fg\n");
     torch::Tensor nis_mask = seg > 0;
     meshgrid_coord = torch::stack({
         meshgrid_output[0].masked_select(nis_mask),
         meshgrid_output[1].masked_select(nis_mask),
         meshgrid_output[2].masked_select(nis_mask)}, -1).to(torch::kInt16);
     torch::Tensor seg_fg = seg.masked_select(nis_mask);
-    print_with_time("Done mask, start unique seg fg to get volume");
+    print_with_time("Done mask, start unique seg fg to get volume\n");
     auto unique_output = at::_unique2(seg_fg, true, false, true);
     torch::Tensor label = std::get<0>(unique_output);
     torch::Tensor vol = std::get<2>(unique_output);
-    print_with_time("Done unique, start resort seg fg to group nis coordinate");
+    print_with_time("Done unique, start resort seg fg to group nis coordinate\n");
 
     auto sorted_nis = seg_fg.argsort();
     meshgrid_coord = meshgrid_coord.index_select(0, sorted_nis); // vol*N x 3
     // print_with_time("Done resort, start loop nis to get center of coordinate");
-    print_with_time("Done resort, start mask big nis");
+    print_with_time("Done resort, start mask big nis\n");
 
     torch::Tensor big_nis_mask = vol > 1000;
     label = label.masked_select(torch::logical_not(big_nis_mask));
@@ -42,14 +42,14 @@ std::vector<torch::Tensor> get_large_fg_coord(torch::Tensor seg) {
     meshgrid_coord = meshgrid_coord.index({mask_pt, torch::indexing::Slice()});
     vol = vol.masked_select(torch::logical_not(big_nis_mask));
     splits = vol.cumsum(0);
-    print_with_time("Done mask big nis, start pad_sequence(pt) to get center of coordinate by median(pt)");
+    print_with_time("Done mask big nis, start pad_sequence(pt) to get center of coordinate by median(pt)\n");
     
     auto pt_splits = torch::tensor_split(meshgrid_coord, splits); // [vol x 3,...]xN
     pt_splits.pop_back();
     torch::Tensor padded_pt = torch::nn::utils::rnn::pad_sequence(pt_splits, false); // max_vol x N x 3
     torch::Tensor ct = padded_pt[0].to(torch::kInt16); // N x 3
 
-    print_with_time("Done get center, out to save tensors");
+    print_with_time("Done get center, out to save tensors\n");
     std::vector<torch::Tensor> outputs;
     outputs.push_back(ct);
     outputs.push_back(meshgrid_coord);
@@ -140,7 +140,11 @@ std::vector<torch::Tensor> flow_3DtoNIS(
     int64_t ilabel,
     int64_t rpad = 20
 ) {
-    std::cout<<"ilabel "<<ilabel<<"\n";
+    print_with_time("Previous NIS id ");
+    std::cout<<ilabel<<"\n";
+    //
+    // TODO: High ram cost (↓)
+    //
     int64_t zpad = 4;
     std::vector<int64_t> rpads({zpad, rpad, rpad});
     int64_t iter_num = 3; // Needs to be odd
@@ -153,10 +157,11 @@ std::vector<torch::Tensor> flow_3DtoNIS(
     std::vector<int64_t> shape0 = {Lz, Ly, Lx};
     std::vector<int64_t> shape;
     std::vector<torch::Tensor> inds = torch::meshgrid({torch::arange(shape0[0]), torch::arange(shape0[1]), torch::arange(shape0[2])}, "ij");
-    
+    print_with_time("Cpp variables init done\n");
     for (int64_t i = 0; i < dims; ++i) {
         p.index_put_({i, torch::logical_not(iscell)}, inds[i].index({torch::logical_not(iscell)}).to(torch::kFloat));
     }
+    print_with_time("iscell prob index done\n");
     for (int64_t i = 0; i < dims; ++i) {
         edges[i] = torch::arange(-0.5 - rpads[i], shape0[i] + 0.5 + rpads[i]);
         shape.push_back(edges[i].numel()-1);
@@ -164,11 +169,18 @@ std::vector<torch::Tensor> flow_3DtoNIS(
     p = p.to(torch::kLong);
     p = torch::stack({p[0].view(-1), p[1].view(-1), p[2].view(-1)}, 0);
     torch::Tensor fg = torch::zeros(shape, torch::kBool);
+    print_with_time("stack iscell prob & fg=torch.zeros done\n");
     fg.index_put_({p[0] + rpads[0], p[1] + rpads[1], p[2] + rpads[2]}, torch::ones(1, torch::kBool));
 
+    print_with_time("fg.index_put_ done\n");
     torch::Tensor h = histogramdd(p.transpose(0, 1).to(torch::kDouble).detach().clone(), edges);
+    print_with_time("iscell prob histogram done\n");
     torch::Tensor pix = flow_3DtoSeed(std::vector<torch::jit::IValue>({h})).toTensor();
+    print_with_time("iscell prob to NIS seed done\n");
     int64_t seed_num = pix.size(0);
+    //
+    // TODO: High ram cost (↑)
+    //
     print_with_time("There are ");
     std::cout << seed_num << " seeds of instance, extend them as mask\n";
     

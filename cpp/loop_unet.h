@@ -10,6 +10,7 @@ std::vector<torch::Tensor> loop_unet(
   // torch::jit::script::Module* preproc,
   torch::jit::script::Module* nis_unet,
   bool do_fg_filter,
+  bool anisotropic,
   std::string device,
   int64_t bsize = 224,
   std::string lefttop_fn = "",

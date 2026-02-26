@@ -1,4 +1,4 @@
-import os, sys, time, shutil, tempfile, datetime, pathlib, subprocess
+import os, time, pathlib
 from pathlib import Path
 import numpy as np
 from tqdm import trange, tqdm
@@ -12,7 +12,7 @@ from simulate_gradz import simulate_gradz
 models_logger = logging.getLogger(__name__)
 
 import transforms, dynamics, utils
-from core import UnetModel, assign_device, check_mkl, parse_model_string
+from core import UnetModel, assign_device, parse_model_string
 
 _MODEL_URL = 'https://www.cellpose.org/models'
 _MODEL_DIR_ENV = os.environ.get("CELLPOSE_LOCAL_MODELS_PATH")
@@ -615,7 +615,7 @@ class CellposeModel(UnetModel):
                                                           )
             
             # flows = [plot.dx_to_circ(dP), dP, cellprob, p] if masks is not None else None
-            return masks, None, styles
+            return masks, cellprob, styles
 
     def _run_cp(self, x, compute_masks=True, normalize=True, invert=False,
                 rescale=1.0, net_avg=False, resample=True,

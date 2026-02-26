@@ -21,6 +21,7 @@ cpp/*.backup
 # Distribution / packaging
 .Python
 build/
+build_main_hummer/
 develop-eggs/
 dist/
 downloads/
@@ -37,6 +38,10 @@ share/python-wheels/
 .installed.cfg
 *.egg
 MANIFEST
+cell_coloc/
+tmp*
+temp*
+*.pth
 
 # PyInstaller
 #  Usually these files are written by a python script from a template
@@ -170,3 +175,4 @@ cython_debug/
 #  and can be added to the global gitignore or merged into this file.  For a more nuclear
 #  option (not recommended) you can uncomment the following to ignore the entire idea folder.
 #.idea/
+e185_L117P5_filels.txt

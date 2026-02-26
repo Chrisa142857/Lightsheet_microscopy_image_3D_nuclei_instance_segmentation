@@ -8,20 +8,21 @@ import nibabel as nib
 import h5py
 from tqdm import tqdm
 from PIL import Image
+import pandas as pd
 
 def nis_mask(pair_tag, brain_tag, img_r, P_tag='P4'):
     # device = 'cuda:1'
     # nis_resolution = (2.5, .75, .75)
     # tgt_resolution = (25, 25, 25)
-    seg_root = f'/cajal/ACMUSERS/ziquanw/Lightsheet/results/{P_tag}/{pair_tag}/{brain_tag}'
-    save_root = f'/cajal/ACMUSERS/ziquanw/Lightsheet/renders/{P_tag}/{pair_tag}'
+    seg_root = f'/scheibel/ACMUSERS/ziquanw/Lightsheet/results/{P_tag}/{pair_tag}/{brain_tag}/UltraII[00 x 00]'
+    save_root = f'/scheibel/ACMUSERS/ziquanw/Lightsheet/visual_raw_res/{P_tag}/{pair_tag}'
     ftail = "seg_meta.zip"
     seg_paths, sortks = listdir_sorted(seg_root, "NIScpp", ftail=ftail, sortkid=3)
     # seg_depths = [sortks[i+1]-sortks[i] for i in range(len(sortks)-1)]
     seg_shape = torch.load(seg_paths[-1])
     _, segW, segH = seg_shape
     segW, segH = segW.item(), segH.item()
-    imgD = int(len(os.listdir(img_r))/3)
+    imgD = len(os.listdir(img_r))
     segD = sum([torch.load(sp)[0].item() for sp in seg_paths])
     z_ratio = segD/imgD
     print("Whole brain shape", int(segD/z_ratio), segW, segH)
@@ -30,15 +31,16 @@ def nis_mask(pair_tag, brain_tag, img_r, P_tag='P4'):
     # tgt_y = int(136/273*segW) #132
     # tgt_x = int(76/230*segH) # 
     ## pair16 L74D769P4 ###############################
-    tgt_z = int(600*z_ratio)#int(104/166*segD) #
+    tgt_z = int(2000*z_ratio)#int(104/166*segD) #
     tgt_y = 1475#4032#2264#int(69/243*segW)#69 60
     tgt_x = 5250#7140#1861#int(71/253*segH)#
     ###################################################
     print("Viewing window location", int(tgt_z/z_ratio), tgt_y, tgt_x, "at org resolution")
-    zwidth = 10
-    width = 10000
+    zwidth = 30
+    width = 1000
     # seg = torch.load(f'{seg_root}/{brain_tag}_NIScpp_results_zmin{tgt_z-24}_seg.zip')
     # seg = torch.load(seg_path)
+    
     centers = torch.load(f'/cajal/ACMUSERS/ziquanw/Lightsheet/statistics/{P_tag}/{pair_tag}/{brain_tag}_nis_center.zip')
     vols = torch.load(f'/cajal/ACMUSERS/ziquanw/Lightsheet/statistics/{P_tag}/{pair_tag}/{brain_tag}_nis_volume.zip')
     pts = h5py.File(f'/cajal/ACMUSERS/ziquanw/Lightsheet/statistics/{P_tag}/{pair_tag}/{brain_tag}_nis_coordinate.h5', 'r')['data']
@@ -296,13 +298,18 @@ if __name__=='__main__':
     # P_tag = 'P14'
     # img_r = f'/lichtman/Ian/Lightsheet/P14/stitched/{pair_tag}/{brain_tag}/stitched'
     # nis_mask(pair_tag, brain_tag+'LocalNorm2', img_r, P_tag)
-    pair_tag = 'pair16'
-    brain_tag = 'L74D769P4'
-    P_tag = 'P4'
-    img_r = f'/cajal/Felix/Lightsheet/{P_tag}/{pair_tag}/output_{brain_tag}/stitched'
-    nis_mask(pair_tag, brain_tag+'restitchedLocalNorm', img_r, P_tag)
+    # pair_tag = 'pair16'
+    # brain_tag = 'L74D769P4'
+    # P_tag = 'P4'
+    # img_r = f'/cajal/Felix/Lightsheet/{P_tag}/{pair_tag}/output_{brain_tag}/stitched'
+    # nis_mask(pair_tag, brain_tag+'restitchedLocalNorm', img_r, P_tag)
     # pair_tag = 'pair16'
     # brain_tag = 'L74D769P4'
     # P_tag = 'P4'
     # img_r = f'/lichtman/Felix/Lightsheet/{P_tag}/{pair_tag}/output_{brain_tag}/stitched'
     # nis_mask(pair_tag, brain_tag+'LocalNorm', img_r, P_tag)
+    pair_tag = 'deconv'
+    brain_tag = 'deconv_L117P5'
+    P_tag = 'E185'
+    img_r = f'/scheibel/ACMUSERS/ziquanw/Lightsheet/image_stitched/E185/deconv/L117P5'
+    nis_mask(pair_tag, brain_tag, img_r, P_tag)

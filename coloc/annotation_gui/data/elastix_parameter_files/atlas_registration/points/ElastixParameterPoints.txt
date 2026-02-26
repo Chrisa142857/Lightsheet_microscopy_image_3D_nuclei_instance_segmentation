@@ -1,0 +1,79 @@
+//Point Transformation - updated March 2019
+
+//ImageTypes
+(FixedInternalImagePixelType "float")
+(FixedImageDimension 3)
+(MovingInternalImagePixelType "float")
+(MovingImageDimension 3)
+
+//Components
+(Registration "MultiMetricMultiResolutionRegistration")
+(FixedImagePyramid "FixedSmoothingImagePyramid")
+(MovingImagePyramid "MovingSmoothingImagePyramid")
+(Interpolator "BSplineInterpolator" "LinearInterpolator" "BSplineInterpolator")
+(Metric "AdvancedMattesMutualInformation" "CorrespondingPointsEuclideanDistanceMetric" "TransformBendingEnergyPenalty")
+(Metric0Weight 1 1 1) //AMMI
+(Metric1Weight 1 0.25 0.125 ) //Points
+(Metric2Weight 0 0 1000) // BE
+
+(Optimizer "StandardGradientDescent")
+(ResampleInterpolator "FinalBSplineInterpolator")
+(Resampler "DefaultResampler")
+(Transform "RecursiveBSplineTransform")
+
+(ErodeMask "false")
+(NumberOfResolutions 3)
+(FinalGridSpacingInVoxels 20 20 20)
+
+(HowToCombineTransforms "Compose")
+(AutomaticScalesEstimation "true")
+(AutomaticTransformInitialization "true")
+
+// Writing images and parameters
+(WriteTransformParametersEachIteration "false")
+(WriteResultImage "true")
+(CompressResultImage "false")
+(WriteResultImageAfterEachResolution "false")
+(ResultImagePixelType "float")
+(ResultImageFormat "mhd")
+(WriteDiffusionFiles "false")
+
+// Option supported in elastix 4.1:
+(UseFastAndLowMemoryVersion "true")
+
+//Maximum number of iterations in each resolution level:
+(MaximumNumberOfIteration 500 2000 4000) 
+
+//Number of grey level bins in each resolution level:
+(NumberOfHistogramBins 64)
+(FixedLimitRangeRatio 0)
+(MovingLimitRangeRatio 0)
+(FixedKernelBSplineOrder 3)
+(MovingKernelBSplineOrder 3)
+
+//Number of spatial samples used to compute the mutual information in each resolution level:
+(ImageSampler "RandomCoordinate")
+(UseRandomSampleRegion "true")
+(SampleRegionSize 100.0 100.0 100.0)
+(NumberOfSpatialSamples 20000)
+(NewSamplesEveryIteration "true")
+(CheckNumberOfSamples "true")
+(MaximumNumberOfSamplingAttempts 10)
+
+//Order of B-Spline interpolation used in each resolution level:
+(BSplineInterpolationOrder 3)
+
+//Order of B-Spline interpolation used for applying the final deformation:
+(FinalBSplineInterpolationOrder 3)
+
+//Default pixel value for pixels that come from outside the picture:
+(DefaultPixelValue 0)
+
+//SP: Param_a in each resolution level. a_k = a/(A+k+1)^alpha
+(SP_a 10000.0 )
+
+//SP: Param_A in each resolution level. a_k = a/(A+k+1)^alpha
+(SP_A 100.0 )
+
+//SP: Param_alpha in each resolution level. a_k = a/(A+k+1)^alpha
+(SP_alpha 0.6)

@@ -4,7 +4,7 @@
 2D Unet-based
 
 ### Motivations:
- - None has developed a nuclei instance segmentation for whole brain.
+ - None has developed a high-throughput nuclei instance segmentation for whole brain.
  - Lightsheet microscopy 3D image has anisotropic resolution.
  - Resolution is isotropic in X-Y plane, where human annotating nuclei, then tracking Z stack.
 
@@ -14,7 +14,8 @@
  - Time cost ~= **15**hr/brain
 
 ### Data:
-Multiple whole brains of mouse in different grown stage. Each brain has ~1500x9000x9000 voxels, and about 30,000,000 to 50,000,000 cells.
+- We segmented on multiple whole brains of mouse in different grown stage, P4 and P14. 
+- P4 brains have ~1500x9000x9000 voxels, and about 30,000,000 to 50,000,000 nuclei.
 
 ### Example to test one partial brain:
 
@@ -65,7 +66,7 @@ python image_stitch/ptreg_stitch_p14.py
 
 #### 5 (Optional) Colocalization with additional channels
 
-In working progress.
+See `coloc/README.md`
 
 ### TODO: Interactive visualization of whole brain nuclei segmentation results
  - [ ] Github [page](http://lightsheet-nis.ziquanw.com/).
