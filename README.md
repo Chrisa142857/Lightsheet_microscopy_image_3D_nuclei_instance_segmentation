@@ -53,8 +53,6 @@ python image_stitch/stitch_main.py
 
 #### 3.5 (Optional) Refine stitch by point registration
 
-Note that this optional step can lead to a worse stitching result.
-
 Check paths in `image_stitch/ptreg_stitch_p14.py`, then 
 ```
 python image_stitch/ptreg_stitch_p14.py
