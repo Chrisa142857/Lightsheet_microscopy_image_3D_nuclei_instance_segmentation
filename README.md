@@ -71,7 +71,7 @@ See `coloc/README.md`
 
 ### Codes availability
  - [x] Train 2D Unet
- - [x] Source code of the executible to test a whole brain
+ - [x] Source code of the executable to test a whole brain
 
 ### Data availability
 
