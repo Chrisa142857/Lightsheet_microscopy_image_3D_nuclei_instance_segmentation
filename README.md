@@ -68,8 +68,8 @@ python image_stitch/ptreg_stitch_p14.py
 
 See `coloc/README.md`
 
-### TODO: Interactive visualization of whole brain nuclei segmentation results
- - [ ] Github [page](http://lightsheet-nis.ziquanw.com/).
+### Web app: Interactive visualization of whole brain nuclei segmentation results
+ - [x] Check on [frontend repo](https://github.com/Chrisa142857/cellpheno-frontend)
 
 ### Codes availability
  - [x] Train 2D Unet
