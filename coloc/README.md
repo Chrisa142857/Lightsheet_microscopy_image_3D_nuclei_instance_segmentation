@@ -3,6 +3,7 @@
 ## Inference of whole-brain co-localization
 1. Download model weights from G-drive [URL](https://drive.google.com/drive/folders/1nrz8TaLUStn23Q6YzgocjwCyDk9_vKWK?usp=sharing). Put models under `model_weights`
 2. Use proper parameters for `python coloc_classifier-multiclassBboxLoc_inferNIS.py`, see `coloc_trainval_infer_cmd.sh` for usage examples.
+3. Classification labels will be saved into `saver` in `coloc_classifier-multiclassBboxLoc_inferNIS.py`, 
 
 ## Train your own models
 1. Generate training patches after NIS is done. 

@@ -7,7 +7,7 @@ import numpy as np
 import argparse
 import pandas as pd
 from tqdm import tqdm
-
+saver = '/scheibel/ACMUSERS/ziquanw/Lightsheet/coloc_classification_addbrain_overfit_layer23'
 def main():
     parser = argparse.ArgumentParser(description='None')
     parser.add_argument('--weights_path', type=str)
@@ -136,7 +136,7 @@ def infer_model(args):
 
     output = {dloader.dataset.patch_info_header[i]: dloader.dataset.patch_info[dloader.dataset.patch_load_index, i].numpy() for i in range(len(dloader.dataset.patch_info_header))}
     output['Tile_name'] = tile_names
-    pd.DataFrame(output).to_csv(f'/scheibel/ACMUSERS/ziquanw/Lightsheet/coloc_classification_addbrain_overfit_layer23/{gtag}/{ptag}_{btag}_{mtag}_results_Z{dataset.zrange[0]:04d}-{dataset.zrange[1]:04d}.csv', index=False)
+    pd.DataFrame(output).to_csv(f'{saver}/{gtag}/{ptag}_{btag}_{mtag}_results_Z{dataset.zrange[0]:04d}-{dataset.zrange[1]:04d}.csv', index=False)
 
 if __name__ == "__main__":
     main()

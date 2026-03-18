@@ -12,13 +12,13 @@ parser = argparse.ArgumentParser(description='None')
 parser.add_argument('--gtag')
 parser.add_argument('--ptag')
 parser.add_argument('--btag')
-# parser.add_argument('--ttag')
-parser.add_argument('--device')
+parser.add_argument('--ttag', type=str, default=None)
+parser.add_argument('--device', type=str, default='cpu')
 args = parser.parse_args()
 pair_tag = args.ptag
 brain_tag = args.btag
 gtag = args.gtag
-# tilekey = args.ttag
+tilekey = args.ttag
 device = args.device
 
 # STAT_ROOT = f'/cajal/ACMUSERS/ziquanw/Lightsheet/results/{gtag}_morphology'
@@ -30,13 +30,13 @@ for ptag in os.listdir(r):
 pbtag_ls = list(reversed(pbtag_ls))
 
 def main():
-    get_pa(pair_tag, brain_tag)
+    get_pa(pair_tag, brain_tag, tgt_ijkey=tilekey)
 
 
-def get_pa(pair_tag, brain_tag, tgt_ijkey=None):
-    for ptag, btag in pbtag_ls[4:]:
+def get_pa(pair_tag, brain_tag, tgt_ijkey):
+    for ptag, btag in pbtag_ls:
         if btag.split('_')[1] == brain_tag: break
-    assert ptag == pair_tag
+    assert ptag == pair_tag, f"{ptag} != {pair_tag}"
     print(ptag, btag, brain_tag)
     # print(datetime.now(), f"Loading {pair_tag} {brain_tag}")
     root, result_root, stack_names, tile_lt_loc, seg_shape, whole_brain_shape = brain_shape_tile_location(pair_tag, btag)
@@ -69,18 +69,21 @@ def get_pa(pair_tag, brain_tag, tgt_ijkey=None):
         print(datetime.now(), f'Processing tile {ijkey}')
         # zstitch_remap = zstitch_remap_dict[ijkey]
         # center_list = []
-        pre_num = 0
+        # pre_num = 0
         for stack_name in stack_names:
             if not os.path.exists(f"{result_root % (_i, _j)}/{stack_name}"): continue
             savefn = f"{result_root % (_i, _j)}/{stack_name.replace('instance_center', 'instance_pa')}"
             savefn = savefn.replace('/cajal', '/scheibel')
+            if os.path.exists(savefn): 
+                print(datetime.now(), f"File {savefn} already exists, skipping")
+                continue
             os.makedirs(os.path.dirname(savefn), exist_ok=True)
             zstart = int(stack_name.split('zmin')[1].split('_')[0])
             zstart = int(zstart*zratio)
             
-            centerfn = f"{result_root % (_i, _j)}/{stack_name}"
-            center = torch.load(centerfn).long().to(device)
-            center[:, 0] = center[:, 0] * zratio + zstart
+            # centerfn = f"{result_root % (_i, _j)}/{stack_name}"
+            # center = torch.load(centerfn).long().to(device)
+            # center[:, 0] = center[:, 0] * zratio + zstart
 
             labelfn = f"{result_root % (_i, _j)}/{stack_name.replace('instance_center', 'instance_label')}"
             label = torch.load(labelfn).long().to(device)
@@ -249,190 +252,3 @@ def sort_stackname(stack_names):
     return [stack_names[i] for i in argsort]
 
 if __name__=="__main__": main()
-
-#     pair_tag = 'pair6'
-#     brain_tag = 'L57D855P6'
-#     data_root = f'/cajal/Felix/Lightsheet/P4/{pair_tag}/output_{brain_tag}/stitched'
-#     main(data_root, pair_tag, brain_tag)
-#     # TODO: NIS used data in lichtman, but should to use cajal
-#     pair_tag = 'pair6'
-#     brain_tag = 'L57D855P2'
-#     data_root = f'/lichtman/Felix/Lightsheet/P4/{pair_tag}/output_{brain_tag}/stitched'
-#     main(data_root, pair_tag, brain_tag)
-
-
-#     pair_tag = 'pair5'
-#     brain_tag = 'L57D855P4'
-#     data_root = f'/cajal/Felix/Lightsheet/P4/{pair_tag}/output_{brain_tag}/stitched'
-#     main(data_root, pair_tag, brain_tag)
-#     pair_tag = 'pair5'
-#     brain_tag = 'L57D855P5'
-#     data_root = f'/lichtman/Felix/Lightsheet/P4/{pair_tag}/output_{brain_tag}/stitched'
-#     main(data_root, pair_tag, brain_tag)
-
-# #########
-#     pair_tag = 'pair19'
-#     brain_tag = 'L79D769P8'
-#     data_root = f'/lichtman/Felix/Lightsheet/P4/{pair_tag}/output_{brain_tag}/stitched'
-#     main(data_root, pair_tag, brain_tag)
-#     pair_tag = 'pair19'
-#     brain_tag = 'L79D769P5'
-#     data_root = f'/lichtman/Felix/Lightsheet/P4/{pair_tag}/output_{brain_tag}/stitched'
-#     main(data_root, pair_tag, brain_tag)
-
-
-#     pair_tag = 'pair17'
-#     brain_tag = 'L77D764P2'
-#     data_root = f'/cajal/Felix/Lightsheet/P4/{pair_tag}/output_{brain_tag}/stitched'
-#     main(data_root, pair_tag, brain_tag)
-
-#     pair_tag = 'pair17'
-#     brain_tag = 'L77D764P9'
-#     data_root = f'/lichtman/Felix/Lightsheet/P4/{pair_tag}/output_{brain_tag}/stitched'
-#     main(data_root, pair_tag, brain_tag)
-
-
-#     pair_tag = 'pair13'
-#     brain_tag = 'L69D764P6'
-#     data_root = f'/lichtman/Felix/Lightsheet/P4/{pair_tag}/output_{brain_tag}/stitched'
-#     main(data_root, pair_tag, brain_tag)
-#     pair_tag = 'pair13'
-#     brain_tag = 'L69D764P9'
-#     data_root = f'/lichtman/Felix/Lightsheet/P4/{pair_tag}/output_{brain_tag}/stitched'
-#     main(data_root, pair_tag, brain_tag)
-
-#     pair_tag = 'pair15'
-#     brain_tag = 'L73D766P4'
-#     data_root = f'/lichtman/Felix/Lightsheet/P4/{pair_tag}/output_{brain_tag}/stitched'
-#     main(data_root, pair_tag, brain_tag)
-#     pair_tag = 'pair15'
-#     brain_tag = 'L73D766P9'
-#     data_root = f'/lichtman/Felix/Lightsheet/P4/{pair_tag}/output_{brain_tag}/stitched'
-#     main(data_root, pair_tag, brain_tag)
-
-
-#     pair_tag = 'pair10'
-#     brain_tag = 'L64D804P3'
-#     data_root = f'/lichtman/Felix/Lightsheet/P4/{pair_tag}/output_{brain_tag}/stitched'
-#     main(data_root, pair_tag, brain_tag)
-#     pair_tag = 'pair10'
-#     brain_tag = 'L64D804P9'
-#     data_root = f'/lichtman/Felix/Lightsheet/P4/{pair_tag}/output_{brain_tag}/stitched'
-#     main(data_root, pair_tag, brain_tag)
-
-#     pair_tag = 'pair11'
-#     brain_tag = 'L66D764P3'
-#     data_root = f'/lichtman/Felix/Lightsheet/P4/{pair_tag}/output_{brain_tag}/stitched'
-#     main(data_root, pair_tag, brain_tag)
-#     pair_tag = 'pair11'
-#     brain_tag = 'L66D764P8'
-#     data_root = f'/lichtman/Felix/Lightsheet/P4/{pair_tag}/output_{brain_tag}/stitched'
-#     main(data_root, pair_tag, brain_tag)
-
-#     pair_tag = 'pair12'
-#     brain_tag = 'L66D764P5'
-#     data_root = f'/lichtman/Felix/Lightsheet/P4/{pair_tag}/output_{brain_tag}/stitched'
-#     main(data_root, pair_tag, brain_tag)
-#     pair_tag = 'pair12'
-#     brain_tag = 'L66D764P6'
-#     data_root = f'/lichtman/Felix/Lightsheet/P4/{pair_tag}/output_{brain_tag}/stitched'
-#     main(data_root, pair_tag, brain_tag)
-# ##########
-#     pair_tag = 'pair14'
-#     brain_tag = 'L73D766P5'
-#     data_root = f'/lichtman/Felix/Lightsheet/P4/{pair_tag}/output_{brain_tag}/stitched'
-#     main(data_root, pair_tag, brain_tag)
-#     pair_tag = 'pair14'
-#     brain_tag = 'L73D766P7'
-#     data_root = f'/lichtman/Felix/Lightsheet/P4/{pair_tag}/output_{brain_tag}/stitched'
-#     main(data_root, pair_tag, brain_tag)
-
-#     pair_tag = 'pair16'
-#     brain_tag = 'L74D769P4'
-#     data_root = f'/lichtman/Felix/Lightsheet/P4/{pair_tag}/output_{brain_tag}/stitched'
-#     main(data_root, pair_tag, brain_tag)
-    
-    # pair_tag = 'pair16'
-    # brain_tag = 'L74D769P8'
-    # data_root = f'/lichtman/Felix/Lightsheet/P4/{pair_tag}/output_{brain_tag}/stitched'
-    # main(data_root, pair_tag, brain_tag)
-
-    # pair_tag = 'pair18'
-    # brain_tag = 'L77D764P4'
-    # data_root = f'/cajal/Felix/Lightsheet/P4/{pair_tag}/output_{brain_tag}/stitched'
-    # main(data_root, pair_tag, brain_tag)
-
-    # pair_tag = 'pair20'
-    # brain_tag = 'L79D769P7'
-    # data_root = f'/lichtman/Felix/Lightsheet/P4/{pair_tag}/output_{brain_tag}/stitched'
-    # main(data_root, pair_tag, brain_tag)
-    # pair_tag = 'pair20'
-    # brain_tag = 'L79D769P9'
-    # data_root = f'/lichtman/Felix/Lightsheet/P4/{pair_tag}/output_{brain_tag}/stitched'
-    # main(data_root, pair_tag, brain_tag)
-
-    # pair_tag = 'pair21'
-    # brain_tag = 'L91D814P2'
-    # data_root = f'/lichtman/Felix/Lightsheet/P4/{pair_tag}/output_{brain_tag}/stitched'
-    # main(data_root, pair_tag, brain_tag)
-    # pair_tag = 'pair21'
-    # brain_tag = 'L91D814P6'
-    # data_root = f'/lichtman/Felix/Lightsheet/P4/{pair_tag}/output_{brain_tag}/stitched'
-    # main(data_root, pair_tag, brain_tag)
-
-    # pair_tag = 'pair22'
-    # brain_tag = 'L91D814P3'
-    # data_root = f'/lichtman/Felix/Lightsheet/P4/{pair_tag}/output_{brain_tag}/stitched'
-    # main(data_root, pair_tag, brain_tag)
-    # pair_tag = 'pair22'
-    # brain_tag = 'L91D814P4'
-    # data_root = f'/lichtman/Felix/Lightsheet/P4/{pair_tag}/output_{brain_tag}/stitched'
-    # main(data_root, pair_tag, brain_tag)
-
-    # pair_tag = 'pair3'
-    # brain_tag = 'L35D719P1'
-    # data_root = f'/lichtman/Felix/Lightsheet/P4/{pair_tag}/output_{brain_tag}/stitched'
-    # main(data_root, pair_tag, brain_tag)
-    # pair_tag = 'pair3'
-    # brain_tag = 'L35D719P4'
-    # data_root = f'/lichtman/Felix/Lightsheet/P4/{pair_tag}/output_{brain_tag}/stitched'
-    # main(data_root, pair_tag, brain_tag)
-
-
-    # pair_tag = 'pair8'
-    # brain_tag = 'L59D878P2'
-    # data_root = f'/lichtman/Felix/Lightsheet/P4/{pair_tag}/output_{brain_tag}/stitched'
-    # main(data_root, pair_tag, brain_tag)
-    # pair_tag = 'pair8'
-    # brain_tag = 'L59D878P5'
-    # data_root = f'/lichtman/Felix/Lightsheet/P4/{pair_tag}/output_{brain_tag}/stitched'
-    # main(data_root, pair_tag, brain_tag)
-
-
-    # pair_tag = 'pair9'
-    # brain_tag = 'L64D804P4'
-    # data_root = f'/lichtman/Felix/Lightsheet/P4/{pair_tag}/output_{brain_tag}/stitched'
-    # main(data_root, pair_tag, brain_tag)
-    # pair_tag = 'pair9'
-    # brain_tag = 'L64D804P6'
-    # data_root = f'/lichtman/Felix/Lightsheet/P4/{pair_tag}/output_{brain_tag}/stitched'
-    # main(data_root, pair_tag, brain_tag)
-
-    # pair_tag = 'pair4'
-    # brain_tag = 'L35D719P3'
-    # data_root = f'/cajal/Felix/Lightsheet/P4/{pair_tag}/output_{brain_tag}/stitched'
-    # main(data_root, pair_tag, brain_tag)
-    # pair_tag = 'pair4'
-    # brain_tag = 'L35D719P5'
-    # data_root = f'/cajal/Felix/Lightsheet/P4/{pair_tag}/output_{brain_tag}/stitched'
-    # main(data_root, pair_tag, brain_tag)
-
-    # pair_tag = 'pair6'
-    # brain_tag = 'L57D855P1'
-    # data_root = f'/lichtman/Felix/Lightsheet/P4/{pair_tag}/output_{brain_tag}/stitched'
-    # main(data_root, pair_tag, brain_tag)
-
-    # pair_tag = 'pair18'
-    # brain_tag = 'L77D764P8'
-    # data_root = f'/cajal/Felix/Lightsheet/P4/{pair_tag}/output_{brain_tag}/stitched'
-    # main(data_root, pair_tag, brain_tag)
