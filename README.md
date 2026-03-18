@@ -76,5 +76,5 @@ See `coloc/README.md`
  - [x] Source code of the executible to test a whole brain
 
 ### Data availability
- - [ ] Train-val data
- - [ ] Test whole brain
+
+See https://bossdb.org/project/curtin2026
