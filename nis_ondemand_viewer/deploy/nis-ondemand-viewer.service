@@ -1,0 +1,30 @@
+# systemd unit for a bare-metal (non-Docker) deploy.
+#
+# Install:
+#   sudo cp deploy/nis-ondemand-viewer.service /etc/systemd/system/
+#   sudo cp deploy/service.env.example /etc/nis-ondemand-viewer.env   # then edit
+#   python -m venv /opt/nis-venv
+#   /opt/nis-venv/bin/pip install torch --index-url https://download.pytorch.org/whl/cpu
+#   /opt/nis-venv/bin/pip install -r /opt/Lightsheet.../nis_ondemand_viewer/requirements.txt
+#   sudo systemctl daemon-reload && sudo systemctl enable --now nis-ondemand-viewer
+#
+# Adjust User, paths, and worker count to your host.
+
+[Unit]
+Description=NIS on-demand zoom viewer
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=ziquanw
+# Repo root containing the nis_ondemand_viewer/ package:
+WorkingDirectory=/opt/Lightsheet_microscopy_image_3D_nuclei_instance_segmentation
+Environment=PYTHONPATH=/opt/Lightsheet_microscopy_image_3D_nuclei_instance_segmentation
+EnvironmentFile=/etc/nis-ondemand-viewer.env
+ExecStart=/opt/nis-venv/bin/uvicorn nis_ondemand_viewer.app:app --host 0.0.0.0 --port 8090 --workers 2
+Restart=on-failure
+RestartSec=3
+
+[Install]
+WantedBy=multi-user.target

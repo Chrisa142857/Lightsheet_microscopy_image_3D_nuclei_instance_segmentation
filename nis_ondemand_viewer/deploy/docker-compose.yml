@@ -1,0 +1,30 @@
+# Run:  cd nis_ondemand_viewer/deploy
+#       cp service.env.example service.env   # then edit paths
+#       docker compose up -d --build
+#
+# Data roots are bind-mounted read-only at the SAME path inside the container,
+# so the values in service.env resolve identically in and out of the container.
+# Edit the left-hand side of each volume to your host paths.
+
+services:
+  nis-ondemand-viewer:
+    build:
+      context: ..                 # the nis_ondemand_viewer/ package dir
+      dockerfile: deploy/Dockerfile
+    image: nis-ondemand-viewer:latest
+    container_name: nis-ondemand-viewer
+    restart: unless-stopped
+    ports:
+      - "8090:8090"
+    env_file:
+      - ./service.env
+    volumes:
+      # host_path : container_path : mode  -- keep both sides equal to NIS_ROOT etc.
+      - "${NIS_ROOT}:${NIS_ROOT}:ro"
+      - "${RAW_ROOT}:${RAW_ROOT}:ro"
+      - "${STITCH_ROOT}:${STITCH_ROOT}:ro"
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://localhost:8090/healthz').status==200 else 1)"]
+      interval: 30s
+      timeout: 5s
+      retries: 3

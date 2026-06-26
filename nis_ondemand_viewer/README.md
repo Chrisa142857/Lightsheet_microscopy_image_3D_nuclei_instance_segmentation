@@ -63,7 +63,16 @@ example for an Imaris-stitcher-style XML; to use your own format, subclass
 
 ## Run
 
+Deploy files in `deploy/` (Docker + systemd); resuming on the data server is
+documented in [`SESSION_HANDOFF.md`](./SESSION_HANDOFF.md), including a
+validation checklist for real data.
+
 ```bash
+# Docker:
+cd nis_ondemand_viewer/deploy && cp service.env.example service.env  # edit paths
+docker compose up -d --build                                          # :8090
+
+# or dev:
 pip install -r nis_ondemand_viewer/requirements.txt   # + libvips for pyvips
 # point at your data:
 export NIS_ROOT=/.../Lightsheet/results RAW_ROOT=/.../image_before_stitch \
