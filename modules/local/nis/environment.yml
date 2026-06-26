@@ -1,0 +1,16 @@
+# yaml-language-server: $schema=https://raw.githubusercontent.com/nf-core/modules/master/modules/environment-schema.json
+#
+# NOTE: NIS is a custom C++/LibTorch/CUDA executable and is NOT distributed as a
+# conda package. This environment only captures the *build* toolchain so the
+# binary can be compiled (see containers/nis/Dockerfile). For execution, always
+# use the dedicated container image referenced in main.nf — running NIS through
+# a bare conda environment is not supported because it requires the prebuilt
+# `main` binary, the TorchScript models, and a matching CUDA runtime.
+name: nis_segment
+channels:
+  - conda-forge
+  - pytorch
+dependencies:
+  - conda-forge::cmake>=3.18
+  - conda-forge::opencv>=4.5
+  - conda-forge::libtorch>=2.1

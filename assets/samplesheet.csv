@@ -1,0 +1,5 @@
+sample,tile_dir,device
+test_brain_00x00,downloads/data/test_pair/test_brain/UltraII[00 x 00],cuda:0
+test_brain_00x01,downloads/data/test_pair/test_brain/UltraII[00 x 01],cuda:0
+test_brain_01x00,downloads/data/test_pair/test_brain/UltraII[01 x 00],cuda:0
+test_brain_01x01,downloads/data/test_pair/test_brain/UltraII[01 x 01],cuda:0
