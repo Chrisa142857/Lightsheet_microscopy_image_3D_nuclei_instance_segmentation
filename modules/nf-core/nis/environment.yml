@@ -1,0 +1,9 @@
+---
+# yaml-language-server: $schema=https://raw.githubusercontent.com/nf-core/modules/master/modules/environment-schema.json
+# NOTE: NIS has NO Conda/Bioconda package. It is a custom C++/LibTorch/CUDA binary
+# distributed only as the GPU container image referenced in main.nf. This file
+# exists to satisfy the module layout, but execution is container-only.
+channels:
+  - conda-forge
+  - bioconda
+dependencies: []
