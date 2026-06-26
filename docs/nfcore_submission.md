@@ -9,23 +9,37 @@ Reference: <https://nf-co.re/docs/contributing/contribute-components>
 
 ## One-time prerequisites (resolve the two external items)
 
-1. **Publish the container.** Build and push the image referenced by the module.
-   For the upstream PR the cleanest registry is the nf-core org namespace
-   (passes the lint registry-prefix check without an allowlist entry):
+1. **Publish the container.** Build and push the image on a machine with Docker +
+   a CUDA GPU + push access. A turnkey script is provided
+   ([`containers/nis/build_and_push.sh`](../containers/nis/build_and_push.sh)),
+   pre-filled with the cu128 LibTorch source (`cpp/README.md` /
+   `cpp/build_main_hummer.sh`):
 
    ```bash
-   docker build -f containers/nis/Dockerfile -t quay.io/nf-core/cellpheno-nis:1.0.0 .
-   docker push quay.io/nf-core/cellpheno-nis:1.0.0
-   # then set `container "quay.io/nf-core/cellpheno-nis:1.0.0"` in modules/nf-core/cellpheno/nis/main.nf
+   docker login quay.io                                   # nf-core push access
+   bash containers/nis/build_and_push.sh quay.io/nf-core/cellpheno-nis 1.0.0
    ```
 
-   (Building needs a CUDA host; the image is large.)
+   (The image is large — CUDA base + LibTorch. If you don't have nf-core quay
+   access yet, push to `ghcr.io/chrisa142857/cellpheno-nis` and update the
+   `container` line, or ask the nf-core team to host it.)
 
 2. **Add minimal test data** to a branch of
    [nf-core/test-datasets](https://github.com/nf-core/test-datasets) (the
-   `numorph/3dunet` precedent): a tiny lightsheet tile directory and the
-   TorchScript `.pt` models, then reference them via
-   `params.modules_testdata_base_path` and add a real, `gpu`-tagged test.
+   `numorph/3dunet` precedent). The fixtures and their layout are in
+   [`tests/testdata/cellpheno_nis`](../tests/testdata/cellpheno_nis). The real
+   TorchScript model weights come from the G-drive folder in `cpp/README.md`:
+
+   ```bash
+   pip install gdown
+   bash containers/nis/fetch_models.sh downloads/resource   # G-drive NIS models
+   ```
+
+   Put the tiny tile under
+   `data/imaging/segmentation/cellpheno_nis/tile/` on test-datasets; host the
+   large `.pt` weights on Zenodo (numorph precedent) and reference them in the
+   `gpu`-tagged test. Then run it on a GPU runner to add its snapshot entry:
+   `nf-test test modules/nf-core/cellpheno/nis/... --profile docker,gpu --update-snapshot`.
 
 ## Open the PR
 
