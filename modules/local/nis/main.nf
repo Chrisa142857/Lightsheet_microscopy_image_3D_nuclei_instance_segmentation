@@ -5,8 +5,8 @@ process NIS_SEGMENT {
 
     // NIS is a custom LibTorch + OpenCV + CUDA executable built from this
     // repository (see containers/nis/Dockerfile). It has no bioconda package,
-    // so it is distributed as a dedicated container image rather than via conda.
-    conda "${moduleDir}/environment.yml"
+    // so it is distributed as a dedicated container image rather than via conda
+    // (no `conda` directive: a conda env cannot provide the prebuilt binary).
     container "${ workflow.containerEngine == 'singularity' && !task.ext.singularity_pull_docker_container ?
         'oras://ghcr.io/chrisa142857/lightsheet-nis:1.0.0' :
         'ghcr.io/chrisa142857/lightsheet-nis:1.0.0' }"
@@ -28,6 +28,10 @@ process NIS_SEGMENT {
     def prefix = task.ext.prefix ?: "${meta.id}"
     // `meta.device` lets a pipeline pin the GPU (e.g. 'cuda:0'); falls back to cuda:0.
     def device = meta.device ?: 'cuda:0'
+    // Single source of truth for the reported NIS version. NIS has no parseable
+    // `--version` output, so report the release/container tag. Keep in sync with
+    // the container tag above and `manifest.version` in nextflow.config.
+    def VERSION = '1.0.0'
     """
     main \\
         --device ${device} \\
@@ -39,12 +43,13 @@ process NIS_SEGMENT {
 
     cat <<-END_VERSIONS > versions.yml
     "${task.process}":
-        nis: \$( main --version 2>&1 | grep -i 'LibTorch version' | sed 's/.*LibTorch version: *//' || echo "1.0.0" )
+        nis: ${VERSION}
     END_VERSIONS
     """
 
     stub:
-    def prefix = task.ext.prefix ?: "${meta.id}"
+    def prefix  = task.ext.prefix ?: "${meta.id}"
+    def VERSION = '1.0.0'
     """
     touch ${prefix}_NIScpp_results_zmin0_seg_meta.zip
     touch ${prefix}_NIScpp_results_zmin0_binary_mask.zip
@@ -56,7 +61,7 @@ process NIS_SEGMENT {
 
     cat <<-END_VERSIONS > versions.yml
     "${task.process}":
-        nis: 1.0.0
+        nis: ${VERSION}
     END_VERSIONS
     """
 }
