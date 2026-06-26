@@ -22,21 +22,17 @@ gh auth login                       # for the fork + PR
 
 ## 1. Build + push the GPU container
 
-```bash
-# Preferred: nf-core org namespace (matches numorph/3dunet). Needs nf-core quay access.
-bash containers/nis/build_and_push.sh quay.io/nf-core/cellpheno-nis 1.0.0
+You are not an nf-core org member, so push to **your own GHCR** (the proven
+no-membership path — `scvitools/*` ships from `ghcr.io/scverse` the same way).
+The module already references `ghcr.io/chrisa142857/cellpheno-nis:1.0.0`.
 
-# Fallback you fully control (works without nf-core membership):
+```bash
 bash containers/nis/build_and_push.sh ghcr.io/chrisa142857/cellpheno-nis 1.0.0
 ```
 
-If you used the **ghcr fallback**, point the module at it so lint can reach the
-image, and make the package public (`ghcr.io` → package settings → Public):
-
-```bash
-sed -i 's#quay.io/nf-core/cellpheno-nis#ghcr.io/chrisa142857/cellpheno-nis#' \
-    modules/nf-core/cellpheno/nis/main.nf
-```
+Then make the package **public** so nf-core CI can pull it:
+github.com → your profile → **Packages** → `cellpheno-nis` →
+**Package settings → Change visibility → Public**.
 
 ## 2. Verify the module is fully green
 
@@ -75,9 +71,15 @@ cd modules
 git checkout -b cellpheno-nis
 cp -r ../Lightsheet_microscopy_image_3D_nuclei_instance_segmentation/modules/nf-core/cellpheno \
       modules/nf-core/
-nf-core modules lint cellpheno/nis
+
+# Allowlist your GHCR registry so the container_links prefix check passes
+# (exactly like ghcr.io/scverse, ghcr.io/marcelauliano, ... already in the list)
+yq -i '.["container-registry"] += ["ghcr.io/chrisa142857"]' .nf-core.yml 2>/dev/null || \
+  sed -i 's#^\(container-registry:\)#\1\n  - ghcr.io/chrisa142857#' .nf-core.yml
+
+nf-core modules lint cellpheno/nis      # should be fully green now (image public + prefix allowlisted)
 pre-commit run --all-files
-git add modules/nf-core/cellpheno
+git add modules/nf-core/cellpheno .nf-core.yml
 git commit -m "new module: cellpheno/nis"
 git push -u origin cellpheno-nis
 gh pr create --repo nf-core/modules --base master \
@@ -90,9 +92,11 @@ it into `PR_BODY.md` first (or paste it into the PR on GitHub).
 
 ## Notes
 
-- **Registry choice:** `quay.io/nf-core/cellpheno-nis` is the ideal home but needs
-  nf-core org access; maintainers commonly mirror a contributor image there during
-  review. Using `ghcr.io/chrisa142857/cellpheno-nis` (public) is fine to get a green
-  lint and open the PR — note it in the PR and the team can re-host.
+- **Registry (no nf-core membership needed):** push to your own public
+  `ghcr.io/chrisa142857/cellpheno-nis` and add `ghcr.io/chrisa142857` to the
+  nf-core/modules `.nf-core.yml` `container-registry` allowlist in your PR — the
+  same pattern as the merged `scvitools/*` (`ghcr.io/scverse`) modules. nf-core
+  may later mirror it to `quay.io/nf-core`; that's a trivial one-line change they
+  handle during review.
 - **Conda CI:** the module intentionally errors under `-profile conda/mamba`
   (GPU binary, no conda) — this is expected and matches `parabricks/*`.

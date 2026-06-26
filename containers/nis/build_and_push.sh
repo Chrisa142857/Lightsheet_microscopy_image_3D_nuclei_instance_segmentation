@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 #
 # Build and push the CellPheno NIS GPU container referenced by
-# modules/nf-core/cellpheno/nis (container "quay.io/nf-core/cellpheno-nis:1.0.0").
+# modules/nf-core/cellpheno/nis (container "ghcr.io/chrisa142857/cellpheno-nis:1.0.0").
 #
 # Run this on a machine with Docker + a CUDA GPU + push access to the target
 # registry. It is the step the automated session cannot do (no Docker daemon,
@@ -15,7 +15,7 @@
 #   bash containers/nis/build_and_push.sh ghcr.io/chrisa142857/cellpheno-nis 1.0.0
 set -euo pipefail
 
-IMAGE="${1:-quay.io/nf-core/cellpheno-nis}"
+IMAGE="${1:-ghcr.io/chrisa142857/cellpheno-nis}"
 VERSION="${2:-1.0.0}"
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 

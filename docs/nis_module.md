@@ -30,17 +30,15 @@ container**. Current `nf-core modules lint cellpheno/nis` result:
 *identical, accepted* lint output that the merged `parabricks/fq2bam` module also
 produces (verified by linting it side by side). They are not code defects:
 
-1. **`container_links` (the 1 failure).** With the image under the nf-core org
-   namespace the registry-prefix check now *passes*; the only remaining failure is
+1. **`container_links` (the 1 failure).** The only remaining failure is
    `Unable to connect to container URL`, because the image hasn't been **published**
-   yet. Resolves once
-   `quay.io/nf-core/cellpheno-nis:1.0.0` is built and pushed — see
-   [`containers/nis/Dockerfile`](../containers/nis/Dockerfile). Not a conda/Bioconda
-   requirement: nf-core accepts container-only GPU modules (parabricks ships from
-   `nvcr.io`, no conda). For the upstream PR the cleanest option is to host the
-   image under the nf-core org namespace, **`quay.io/nf-core/cellpheno-nis:<tag>`** — the
-   pattern `numorph/3dunet` uses (`quay.io/nf-core/numorph-3dunet:1.0.9`) — which
-   also satisfies the registry-prefix check without an allowlist entry.
+   yet (and ghcr.io is unreachable from the sandbox). The merged `scvitools/*`
+   modules (`ghcr.io/scverse`) show the *same* "unable to connect" here. Resolves
+   once `ghcr.io/chrisa142857/cellpheno-nis:1.0.0` is built, pushed and made public —
+   see [`containers/nis/Dockerfile`](../containers/nis/Dockerfile). No nf-core
+   membership needed: host on your public GHCR and add `ghcr.io/chrisa142857` to the
+   nf-core/modules `.nf-core.yml` `container-registry` allowlist in the PR (exactly
+   like `ghcr.io/scverse`), which makes the registry-prefix check pass.
 2. **`process_gpu` "non-standard label" warning.** Emitted for *every* GPU module,
    including `parabricks`; it is the accepted GPU label. Tolerated.
 3. **`main_nf_container` version-match warning.** Also present on `parabricks`.
@@ -107,7 +105,7 @@ Other flags (`--batch_size`, `--chunk_depth`, `--cellprob_threshold`,
 ## Build the container
 
 ```bash
-docker build -f containers/nis/Dockerfile -t quay.io/nf-core/cellpheno-nis:1.0.0 .
+docker build -f containers/nis/Dockerfile -t ghcr.io/chrisa142857/cellpheno-nis:1.0.0 .
 ```
 
 The image compiles `cpp/` against a CUDA build of LibTorch and ships the binary
