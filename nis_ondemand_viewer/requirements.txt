@@ -1,0 +1,12 @@
+# Core service
+fastapi>=0.110
+uvicorn[standard]>=0.29
+numpy>=1.24
+nibabel>=5.0
+torch>=2.0            # to torch.load the NIS C++ tensors
+
+# Raw-image partial TIFF reads -- at least one of:
+pyvips>=2.2           # preferred (libvips region reads); needs libvips installed
+tifffile>=2024.1      # fallback (with zarr for tiled partial decode)
+zarr>=2.16
+pillow>=10.0          # last-resort per-plane decode
