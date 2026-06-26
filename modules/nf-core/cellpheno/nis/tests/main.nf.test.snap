@@ -27,8 +27,8 @@
                 ],
                 "2": [
                     [
-                        "NIS",
-                        "nis",
+                        "CELLPHENO_NIS",
+                        "cellpheno_nis",
                         "1.0.0"
                     ]
                 ],
@@ -55,16 +55,16 @@
                         "test_brain_remap.zip:md5,d41d8cd98f00b204e9800998ecf8427e"
                     ]
                 ],
-                "versions_nis": [
+                "versions_cellpheno_nis": [
                     [
-                        "NIS",
-                        "nis",
+                        "CELLPHENO_NIS",
+                        "cellpheno_nis",
                         "1.0.0"
                     ]
                 ]
             }
         ],
-        "timestamp": "2026-06-26T17:50:45.979590793",
+        "timestamp": "2026-06-26T18:29:39.774501839",
         "meta": {
             "nf-test": "0.9.5",
             "nextflow": "24.10.5"

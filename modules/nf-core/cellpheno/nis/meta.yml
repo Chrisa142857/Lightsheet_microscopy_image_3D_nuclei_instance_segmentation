@@ -1,4 +1,4 @@
-name: "nis"
+name: "cellpheno_nis"
 description: 3D nuclei instance segmentation of whole-brain lightsheet
   microscopy tiles using a 2D U-Net + flow + GNN gap-stitching pipeline
 keywords:
@@ -8,7 +8,7 @@ keywords:
   - 3D
   - whole brain
 tools:
-  - "nis":
+  - "cellpheno_nis":
       description: "C++/LibTorch executable that segments 3D nuclei instances from a
         stack of 2D lightsheet image slices. Runs a 2D U-Net per slice, converts 2D
         flows to 3D, follows flows to obtain instances per depth-chunk, and stitches
@@ -67,14 +67,14 @@ output:
             depth chunks. Absent when fewer than two chunks contain instances.
           pattern: "*_remap.zip"
           ontologies: []
-  versions_nis:
+  versions_cellpheno_nis:
     - - "${task.process}":
           type: string
           description: The name of the process
-      - "nis":
+      - "cellpheno_nis":
           type: string
           description: The name of the tool
-      - "cat /usr/local/share/nis/VERSION":
+      - "cat /usr/local/share/cellpheno-nis/VERSION":
           type: eval
           description: The expression to obtain the version of the tool
 topics:
@@ -82,10 +82,10 @@ topics:
     - - "${task.process}":
           type: string
           description: The name of the process
-      - "nis":
+      - "cellpheno_nis":
           type: string
           description: The name of the tool
-      - "cat /usr/local/share/nis/VERSION":
+      - "cat /usr/local/share/cellpheno-nis/VERSION":
           type: eval
           description: The expression to obtain the version of the tool
 authors:

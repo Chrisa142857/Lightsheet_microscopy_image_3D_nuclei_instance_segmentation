@@ -11,18 +11,18 @@ resource-managed Nextflow process instead of the hand-written
 | Path | Purpose | Status |
 | --- | --- | --- |
 | [`modules/local/nis`](../modules/local/nis) | Runs in this repo's own pipeline (`main.nf`). Pragmatic: `versions.yml` heredoc, runnable stub anywhere. | ✅ Working, stub-validated |
-| [`modules/nf-core/nis`](../modules/nf-core/nis) | Submission candidate for [nf-core/modules](https://github.com/nf-core/modules) (issue [#11311](https://github.com/nf-core/modules/issues/11311)). Follows the **`parabricks/*` GPU pattern**: single vendor container, no conda, `topic: versions` + `eval`. | ✅ `nf-core modules lint`: **41/41 pass** (1 expected GPU exception) |
+| [`modules/nf-core/cellpheno/nis`](../modules/nf-core/cellpheno/nis) | Submission candidate for [nf-core/modules](https://github.com/nf-core/modules) (issue [#11311](https://github.com/nf-core/modules/issues/11311)). Follows the **`parabricks/*` GPU pattern**: single vendor container, no conda, `topic: versions` + `eval`. | ✅ `nf-core modules lint`: **42/45** (only the unpublished-container check fails) |
 
-### nf-core submission status (`modules/nf-core/nis`)
+### nf-core submission status (`modules/nf-core/cellpheno/nis`)
 
-Generated with `nf-core/tools` 4.0.2 (`nf-core modules create nis`), then aligned to
+Generated with `nf-core/tools` 4.0.2 (`nf-core modules create cellpheno/nis`), then aligned to
 the pattern used by the **merged `nf-core/parabricks/*` GPU modules** — the
 canonical precedent for a GPU tool with **no Conda package, shipped as a vendor
-container**. Current `nf-core modules lint nis` result:
+container**. Current `nf-core modules lint cellpheno/nis` result:
 
 ```
-[✔]  41 Tests Passed
-[!]   3 Test Warnings
+[✔]  42 Tests Passed
+[!]   2 Test Warnings
 [✗]   1 Test Failed
 ```
 
@@ -30,15 +30,15 @@ container**. Current `nf-core modules lint nis` result:
 *identical, accepted* lint output that the merged `parabricks/fq2bam` module also
 produces (verified by linting it side by side). They are not code defects:
 
-1. **`container_links` (the 1 failure) + the `405` warning.** Lint tries to *fetch*
-   the container image to verify it exists; it can't, because the image hasn't been
-   **published** yet (and isn't reachable from CI). `parabricks` fails this check
-   the same way. Resolves once
-   `ghcr.io/chrisa142857/lightsheet-nis:1.0.0` is built and pushed — see
+1. **`container_links` (the 1 failure).** With the image under the nf-core org
+   namespace the registry-prefix check now *passes*; the only remaining failure is
+   `Unable to connect to container URL`, because the image hasn't been **published**
+   yet. Resolves once
+   `quay.io/nf-core/cellpheno-nis:1.0.0` is built and pushed — see
    [`containers/nis/Dockerfile`](../containers/nis/Dockerfile). Not a conda/Bioconda
    requirement: nf-core accepts container-only GPU modules (parabricks ships from
    `nvcr.io`, no conda). For the upstream PR the cleanest option is to host the
-   image under the nf-core org namespace, **`quay.io/nf-core/nis:<tag>`** — the
+   image under the nf-core org namespace, **`quay.io/nf-core/cellpheno-nis:<tag>`** — the
    pattern `numorph/3dunet` uses (`quay.io/nf-core/numorph-3dunet:1.0.9`) — which
    also satisfies the registry-prefix check without an allowlist entry.
 2. **`process_gpu` "non-standard label" warning.** Emitted for *every* GPU module,
@@ -50,7 +50,7 @@ How the conda/version/test items were solved (no maintainers needed):
 
 - **Conda:** removed the `conda` directive and `environment.yml`, and added the
   `parabricks`-style guard that errors under `-profile conda/mamba`.
-- **Versions:** reported via `eval("cat /usr/local/share/nis/VERSION")`, a single
+- **Versions:** reported via `eval("cat /usr/local/share/cellpheno-nis/VERSION")`, a single
   authoritative source baked into the container (`ARG NIS_VERSION`).
 - **Snapshot (`test_snapshot_exists`):** generated `tests/main.nf.test.snap` from a
   `-stub` run. Content is portable (output basenames + empty-file md5s + version),
@@ -107,7 +107,7 @@ Other flags (`--batch_size`, `--chunk_depth`, `--cellprob_threshold`,
 ## Build the container
 
 ```bash
-docker build -f containers/nis/Dockerfile -t ghcr.io/chrisa142857/lightsheet-nis:1.0.0 .
+docker build -f containers/nis/Dockerfile -t quay.io/nf-core/cellpheno-nis:1.0.0 .
 ```
 
 The image compiles `cpp/` against a CUDA build of LibTorch and ships the binary

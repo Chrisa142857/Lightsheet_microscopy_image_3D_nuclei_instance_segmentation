@@ -1,14 +1,14 @@
-process NIS {
+process CELLPHENO_NIS {
     tag "$meta.id"
     label 'process_high'
     label 'process_gpu'
 
-    // NIS is a custom LibTorch + OpenCV + CUDA executable built from the source
-    // repository (https://github.com/Chrisa142857/Lightsheet_microscopy_image_3D_nuclei_instance_segmentation).
+    // CellPheno NIS is a custom LibTorch + OpenCV + CUDA executable built from the
+    // source repository (https://github.com/Chrisa142857/Lightsheet_microscopy_image_3D_nuclei_instance_segmentation).
     // It has no Conda/Bioconda package and requires a CUDA runtime, so it is
-    // distributed only as a dedicated GPU container image (cf. the parabricks
-    // modules, which likewise ship a vendor GPU image with no conda support).
-    container "ghcr.io/chrisa142857/lightsheet-nis:1.0.0"
+    // distributed only as a dedicated GPU container image (cf. the parabricks and
+    // numorph/3dunet modules, which likewise ship a vendor GPU image with no conda).
+    container "quay.io/nf-core/cellpheno-nis:1.0.0"
 
     input:
     tuple val(meta), path(tile_dir)
@@ -17,7 +17,7 @@ process NIS {
     output:
     tuple val(meta), path("*_NIScpp_results_*.zip"), emit: nis
     tuple val(meta), path("*_remap.zip")           , emit: remap, optional: true
-    tuple val("${task.process}"), val('nis'), eval("cat /usr/local/share/nis/VERSION"), topic: versions, emit: versions_nis
+    tuple val("${task.process}"), val('cellpheno_nis'), eval("cat /usr/local/share/cellpheno-nis/VERSION"), topic: versions, emit: versions_cellpheno_nis
 
     when:
     task.ext.when == null || task.ext.when
@@ -26,7 +26,7 @@ process NIS {
     // Exit if running this module with -profile conda / -profile mamba: NIS is a
     // GPU binary with no conda package (same guard as the nf-core parabricks modules).
     if (workflow.profile.tokenize(',').intersect(['conda', 'mamba']).size() >= 1) {
-        error("The NIS module does not support Conda/Mamba. Please use Docker / Singularity / Apptainer / Podman instead.")
+        error("The CELLPHENO_NIS module does not support Conda/Mamba. Please use Docker / Singularity / Apptainer / Podman instead.")
     }
     def args   = task.ext.args ?: ''
     def prefix = task.ext.prefix ?: "${meta.id}"

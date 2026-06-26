@@ -63,11 +63,11 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 COPY --from=build /opt/libtorch /opt/libtorch
 COPY --from=build /src/cpp/build/main /usr/local/bin/main
 
-# Single authoritative version source. The nf-core module reports the NIS
-# version via `eval("cat /usr/local/share/nis/VERSION")`, so the container tag
+# Single authoritative version source. The nf-core module reports the NIS version
+# via `eval("cat /usr/local/share/cellpheno-nis/VERSION")`, so the container tag
 # (ARG) and the reported version stay in lockstep. Bump together on release.
 ARG NIS_VERSION=1.0.0
-RUN mkdir -p /usr/local/share/nis && echo "${NIS_VERSION}" > /usr/local/share/nis/VERSION
+RUN mkdir -p /usr/local/share/cellpheno-nis && echo "${NIS_VERSION}" > /usr/local/share/cellpheno-nis/VERSION
 
 ENV LD_LIBRARY_PATH=/opt/libtorch/lib:${LD_LIBRARY_PATH}
 
