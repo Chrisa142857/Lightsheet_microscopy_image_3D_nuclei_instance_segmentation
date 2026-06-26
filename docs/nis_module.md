@@ -33,11 +33,14 @@ produces (verified by linting it side by side). They are not code defects:
 1. **`container_links` (the 1 failure) + the `405` warning.** Lint tries to *fetch*
    the container image to verify it exists; it can't, because the image hasn't been
    **published** yet (and isn't reachable from CI). `parabricks` fails this check
-   the same way. Resolves automatically once
+   the same way. Resolves once
    `ghcr.io/chrisa142857/lightsheet-nis:1.0.0` is built and pushed — see
    [`containers/nis/Dockerfile`](../containers/nis/Dockerfile). Not a conda/Bioconda
    requirement: nf-core accepts container-only GPU modules (parabricks ships from
-   `nvcr.io`, no conda).
+   `nvcr.io`, no conda). For the upstream PR the cleanest option is to host the
+   image under the nf-core org namespace, **`quay.io/nf-core/nis:<tag>`** — the
+   pattern `numorph/3dunet` uses (`quay.io/nf-core/numorph-3dunet:1.0.9`) — which
+   also satisfies the registry-prefix check without an allowlist entry.
 2. **`process_gpu` "non-standard label" warning.** Emitted for *every* GPU module,
    including `parabricks`; it is the accepted GPU label. Tolerated.
 3. **`main_nf_container` version-match warning.** Also present on `parabricks`.
