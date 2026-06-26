@@ -5,6 +5,14 @@ package (so a BioContainer/Seqera image can be auto-built). NIS currently fails
 that check because it is a custom C++/LibTorch/CUDA GPU binary with no Conda
 package. This note assesses whether that gap can realistically be closed.
 
+> **Resolution (no maintainers needed).** The question this note framed as "ask the
+> maintainers whether a container-only GPU module is acceptable" is already answered
+> by precedent: the merged **`nf-core/parabricks/*`** modules are GPU-only,
+> container-only (`nvcr.io`), and ship **no conda package**. Our `modules/nf-core/nis`
+> now follows that exact pattern and lints **41/41** — the same posture as
+> `parabricks/fq2bam`. So Bioconda packaging is **not required** at all; the analysis
+> below remains as the record of *why* packaging wouldn't have helped anyway.
+
 ## TL;DR
 
 - **Building the NIS binary as a Conda package is technically feasible** — every
