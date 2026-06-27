@@ -8,8 +8,8 @@ process NIS_SEGMENT {
     // so it is distributed as a dedicated container image rather than via conda
     // (no `conda` directive: a conda env cannot provide the prebuilt binary).
     container "${ workflow.containerEngine == 'singularity' && !task.ext.singularity_pull_docker_container ?
-        'oras://ghcr.io/chrisa142857/lightsheet-nis:1.0.0' :
-        'ghcr.io/chrisa142857/lightsheet-nis:1.0.0' }"
+        'oras://ghcr.io/chrisa142857/cellpheno-nis:1.0.0' :
+        'ghcr.io/chrisa142857/cellpheno-nis:1.0.0' }"
 
     input:
     tuple val(meta), path(tile_dir)
