@@ -36,9 +36,9 @@ no `environment.yml`, an in-script guard that errors under `-profile conda/mamba
 - Versions come from `eval("cat /usr/local/share/cellpheno-nis/VERSION")` because the binary
   has no `--version`; the Dockerfile writes that file from the same `ARG` as the
   image tag to keep them in lockstep.
-- **Container hosting:** the image is currently published at
-  `ghcr.io/chrisa142857/cellpheno-nis:1.0.0` (I don't yet have `quay.io/nf-core`
-  push access). `nf-core modules lint --registry ghcr.io` is clean (42 passed, 0
-  failed). I'm happy to have the team re-host it under
-  `quay.io/nf-core/cellpheno-nis` during review and will update the `container`
-  line to match.
+- **Container hosting:** the image is published at
+  `quay.io/wzq10101/cellpheno-nis:1.0.0` (my personal Quay namespace — I'm a new
+  nf-core member and don't have `quay.io/nf-core` push access yet). `nf-core modules
+  lint` is clean (42 passed, 0 failed) under the default `quay.io` registry. Happy to
+  have the team re-host it under `quay.io/nf-core/cellpheno-nis` during review — I'll
+  update the `container` line to match.
