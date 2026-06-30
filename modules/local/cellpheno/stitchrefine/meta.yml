@@ -1,0 +1,43 @@
+name: "cellpheno_stitchrefine"
+description: Point-registration refinement of the NIS tile-stitch transform (optional)
+keywords:
+  - lightsheet microscopy
+  - image stitching
+  - point registration
+  - whole brain
+tools:
+  - "cellpheno_stitchrefine":
+      description: "Recomputes a finer per-slice tile alignment from NIS instances (CPD
+        point registration) and writes <btag>_tform_refine_ptreg.json, which the brain map
+        uses in preference to the phase-correlation transform. Wraps
+        image_stitch/ptreg_stitch.stitch_by_ptreg (README step 3.5)."
+      homepage: "https://github.com/Chrisa142857/Lightsheet_microscopy_image_3D_nuclei_instance_segmentation"
+      licence:
+        - "MIT"
+input:
+  - - meta:
+        type: map
+        description: |
+          Brain meta map, e.g. `[ id:'test_brain', pair:'test_pair', ncol:2, nrow:2 ]`.
+    - tile_tars:
+        type: file
+        description: Per-tile tars from CELLPHENO_COORDTOBBOX (grouped by brain).
+        pattern: "*.tar"
+output:
+  tform:
+    - - meta:
+          type: map
+          description: Brain meta map.
+      - "NIS_tranform/${meta.id}_tform_refine_ptreg.json":
+          type: file
+          description: Point-registration refined stitch transform (JSON).
+          pattern: "*_tform_refine_ptreg.json"
+  versions:
+    - "versions.yml":
+        type: file
+        description: File containing software versions.
+        pattern: "versions.yml"
+authors:
+  - "@Chrisa142857"
+maintainers:
+  - "@Chrisa142857"

@@ -1,0 +1,5 @@
+brain,pair,tile_x,tile_y,tile_dir,image_dir,device
+test_brain,test_pair,0,0,tests/testdata/cellpheno_nis/tile,tests/testdata/cellpheno_nis/tile,cuda:0
+test_brain,test_pair,0,1,tests/testdata/cellpheno_nis/tile,tests/testdata/cellpheno_nis/tile,cuda:0
+test_brain,test_pair,1,0,tests/testdata/cellpheno_nis/tile,tests/testdata/cellpheno_nis/tile,cuda:0
+test_brain,test_pair,1,1,tests/testdata/cellpheno_nis/tile,tests/testdata/cellpheno_nis/tile,cuda:0

@@ -1,0 +1,46 @@
+name: "cellpheno_coloc"
+description: NIS-guided multi-channel co-localization classifier (inference) for one brain
+keywords:
+  - lightsheet microscopy
+  - colocalization
+  - classification
+  - whole brain
+tools:
+  - "cellpheno_coloc":
+      description: "Classifies each NIS instance for marker co-localization across
+        additional channels. Wraps coloc/coloc_classifier-multiclassBboxLoc_inferNIS.py.
+        NOTE: the underlying dataset resolves several data-root paths relative to
+        `coloc/`; treat as optional (`--run_coloc`) until pointed at your data/weights."
+      homepage: "https://github.com/Chrisa142857/Lightsheet_microscopy_image_3D_nuclei_instance_segmentation"
+      licence:
+        - "MIT"
+input:
+  - - meta:
+        type: map
+        description: |
+          Brain meta map, e.g. `[ id:'test_brain', pair:'test_pair' ]`.
+    - tile_tars:
+        type: file
+        description: Per-tile tars from CELLPHENO_COORDTOBBOX (grouped by brain).
+        pattern: "*.tar"
+  - weights:
+      type: file
+      description: Optional classifier checkpoint ([] -> auto-discover in coloc/model_weights).
+output:
+  coloc:
+    - - meta:
+          type: map
+          description: Brain meta map.
+      - "*_results_*.csv":
+          type: file
+          description: Per-instance co-localization classification table.
+          pattern: "*_results_*.csv"
+  versions:
+    - "versions.yml":
+        type: file
+        description: File containing software versions.
+        pattern: "versions.yml"
+authors:
+  - "@Chrisa142857"
+maintainers:
+  - "@Chrisa142857"

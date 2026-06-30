@@ -1,0 +1,2 @@
+nis_segment:
+  - modules/local/nis/**

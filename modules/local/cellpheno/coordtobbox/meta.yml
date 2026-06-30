@@ -1,0 +1,42 @@
+name: "cellpheno_coordtobbox"
+description: Derive per-instance 3D bounding boxes from NIS instance coordinates and volumes
+keywords:
+  - lightsheet microscopy
+  - nuclei segmentation
+  - bounding box
+  - 3D
+tools:
+  - "cellpheno_coordtobbox":
+      description: "Per-tile conversion of NIS instance coordinates + volumes into 3D
+        bounding boxes (consumed by the tile-stitching step). Wraps coord_to_bbox.py."
+      homepage: "https://github.com/Chrisa142857/Lightsheet_microscopy_image_3D_nuclei_instance_segmentation"
+      licence:
+        - "MIT"
+input:
+  - - meta:
+        type: map
+        description: |
+          Tile meta map, e.g. `[ id:'test_brain_t0x0', brain:'test_brain',
+          pair:'test_pair', tile_x:0, tile_y:0 ]`.
+    - nis_results:
+        type: file
+        description: NIS result tensors for one tile (instance_coordinate/volume/center).
+        pattern: "*_NIScpp_results_*.zip"
+output:
+  tile:
+    - - meta:
+          type: map
+          description: Tile meta map.
+      - "${meta.id}.tar":
+          type: file
+          description: tar of the `UltraII[col x row]/` dir (NIS zips + instance_bbox).
+          pattern: "*.tar"
+  versions:
+    - "versions.yml":
+        type: file
+        description: File containing software versions.
+        pattern: "versions.yml"
+authors:
+  - "@Chrisa142857"
+maintainers:
+  - "@Chrisa142857"

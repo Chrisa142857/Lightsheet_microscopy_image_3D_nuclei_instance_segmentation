@@ -1,0 +1,39 @@
+nextflow_process {
+
+    name "Test Process NIS_SEGMENT"
+    script "../main.nf"
+    process "NIS_SEGMENT"
+
+    tag "modules"
+    tag "modules_local"
+    tag "nis"
+    tag "nis_segment"
+
+    test("nis - stub") {
+
+        options "-stub"
+
+        when {
+            process {
+                """
+                input[0] = [
+                    [ id:'test_brain', device:'cuda:0' ],
+                    file(params.test_data_base + '/tiles', checkIfExists: false)
+                ]
+                input[1] = file(params.test_data_base + '/models', checkIfExists: false)
+                """
+            }
+        }
+
+        then {
+            assertAll(
+                { assert process.success },
+                { assert snapshot(
+                    process.out.nis,
+                    process.out.remap,
+                    process.out.versions
+                ).match() }
+            )
+        }
+    }
+}

@@ -1,0 +1,24 @@
+# Keep the Docker build context (cellpheno-nis + cellpheno-postproc) to code only.
+# Large notebooks, figures, volumes and scratch data are not needed in either image.
+.git
+.github
+.nextflow*
+work/
+results/
+downloads/
+*.ipynb
+*.png
+*.svg
+*.jpg
+*.jpeg
+*.nii
+*.nii.gz
+*.tif
+*.tiff
+*.mat
+*.npy
+*.zip
+test_chunk_image/
+tests/testdata/
+**/__pycache__/
+*.pyc

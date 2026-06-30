@@ -176,3 +176,13 @@ cython_debug/
 #  option (not recommended) you can uncomment the following to ignore the entire idea folder.
 #.idea/
 e185_L117P5_filels.txt
+
+# Nextflow / nf-core
+.nextflow/
+.nextflow.log*
+work/
+results/
+.nf-test/
+.nf-test.log
+*.nf.test.snap.actual
+nxf-tmp.*

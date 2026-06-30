@@ -1,0 +1,29 @@
+# Dependency reference for the cellpheno-postproc container (NOT used as a conda
+# directive by the modules — they are container-only, like cellpheno/nis). This is
+# the curated subset of requirements.txt that the downstream scripts actually need.
+name: cellpheno-postproc
+channels:
+  - pytorch
+  - nvidia
+  - conda-forge
+dependencies:
+  - python=3.10
+  - pytorch=2.5.1
+  - torchvision
+  - pytorch-cuda=12.1
+  - numpy
+  - scipy
+  - pandas
+  - tqdm
+  - nibabel
+  - scikit-image
+  - pillow
+  - matplotlib
+  - seaborn
+  - dask
+  - simpleitk
+  - pip
+  - pip:
+      # brainmap_nogui.scatter_max — prebuilt wheel matching torch 2.5.1+cu121
+      - --find-links https://data.pyg.org/whl/torch-2.5.1+cu121.html
+      - torch-scatter
