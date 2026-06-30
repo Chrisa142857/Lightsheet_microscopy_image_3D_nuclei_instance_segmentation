@@ -6,8 +6,10 @@
 
 include { NIS_SEGMENT           } from '../modules/local/nis/main'
 include { CELLPHENO_COORDTOBBOX } from '../modules/local/cellpheno/coordtobbox/main'
-include { CELLPHENO_STITCH      } from '../modules/local/cellpheno/stitch/main'
-include { CELLPHENO_BRAINMAP    } from '../modules/local/cellpheno/brainmap/main'
+include { CELLPHENO_MORPHOMETRY } from '../modules/local/cellpheno/morphometry/main'
+include { CELLPHENO_STITCH       } from '../modules/local/cellpheno/stitch/main'
+include { CELLPHENO_STITCHREFINE } from '../modules/local/cellpheno/stitchrefine/main'
+include { CELLPHENO_BRAINMAP     } from '../modules/local/cellpheno/brainmap/main'
 include { CELLPHENO_COLOC       } from '../modules/local/cellpheno/coloc/main'
 
 /*
@@ -71,6 +73,16 @@ workflow NIS {
     ch_versions = ch_versions.mix(CELLPHENO_COORDTOBBOX.out.versions.first())
 
     //
+    // 2b) (Optional) per-nucleus 3D shape morphometry (ellipsoid principal axes).
+    //
+    ch_morphometry = Channel.empty()
+    if (params.run_morphometry) {
+        CELLPHENO_MORPHOMETRY ( NIS_SEGMENT.out.nis )
+        ch_morphometry = CELLPHENO_MORPHOMETRY.out.morphometry
+        ch_versions    = ch_versions.mix(CELLPHENO_MORPHOMETRY.out.versions.first())
+    }
+
+    //
     // Group the per-tile tars by brain -> [ brain_meta, [ tile tars ] ].
     //
     ch_by_brain = CELLPHENO_COORDTOBBOX.out.tile
@@ -104,12 +116,26 @@ workflow NIS {
     ch_versions = ch_versions.mix(CELLPHENO_STITCH.out.versions.first())
 
     //
-    // 4) Whole-brain map per brain: join grouped tars with the stitch transform.
+    // 3.5) (Optional) point-registration refinement; brainmap prefers it when present.
+    //
+    ch_tforms = CELLPHENO_STITCH.out.tform.map { bmeta, tform -> [ bmeta.id, [ tform ] ] }
+    ch_ptreg  = Channel.empty()
+    if (params.run_stitchrefine) {
+        CELLPHENO_STITCHREFINE ( ch_by_brain )
+        ch_ptreg    = CELLPHENO_STITCHREFINE.out.tform
+        ch_versions = ch_versions.mix(CELLPHENO_STITCHREFINE.out.versions.first())
+        ch_tforms   = ch_tforms
+            .join( ch_ptreg.map { bmeta, tform -> [ bmeta.id, tform ] } )
+            .map { id, tlist, ptreg -> [ id, tlist + [ ptreg ] ] }
+    }
+
+    //
+    // 4) Whole-brain map per brain: join grouped tars with the stitch transform(s).
     //
     ch_brainmap_in = ch_by_brain
         .map { bmeta, tars -> [ bmeta.id, bmeta, tars ] }
-        .join( CELLPHENO_STITCH.out.tform.map { bmeta, tform -> [ bmeta.id, tform ] } )
-        .map { id, bmeta, tars, tform -> [ bmeta, tars, tform ] }
+        .join( ch_tforms )
+        .map { id, bmeta, tars, tforms -> [ bmeta, tars, tforms ] }
     CELLPHENO_BRAINMAP ( ch_brainmap_in )
     ch_versions = ch_versions.mix(CELLPHENO_BRAINMAP.out.versions.first())
 
@@ -127,7 +153,9 @@ workflow NIS {
     emit:
     nis      = NIS_SEGMENT.out.nis
     bbox     = CELLPHENO_COORDTOBBOX.out.tile
+    morphometry = ch_morphometry
     tform    = CELLPHENO_STITCH.out.tform
+    tform_ptreg = ch_ptreg
     brainmap = CELLPHENO_BRAINMAP.out.brainmap
     coloc    = ch_coloc
     versions = ch_versions

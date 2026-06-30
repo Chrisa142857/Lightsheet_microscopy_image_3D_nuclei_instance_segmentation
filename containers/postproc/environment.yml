@@ -19,7 +19,9 @@ dependencies:
   - scikit-image
   - pillow
   - matplotlib
+  - seaborn
   - dask
+  - simpleitk
   - pip
   - pip:
       # brainmap_nogui.scatter_max — prebuilt wheel matching torch 2.5.1+cu121

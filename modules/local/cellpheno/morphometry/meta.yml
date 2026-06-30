@@ -1,0 +1,46 @@
+name: "cellpheno_morphometry"
+description: Per-nucleus 3D shape morphometry (ellipsoid principal axes) from NIS instances
+keywords:
+  - lightsheet microscopy
+  - morphometry
+  - shape
+  - ellipsoid
+  - 3D
+tools:
+  - "cellpheno_morphometry":
+      description: "Measures each NIS instance's 3D ellipsoid with SimpleITK
+        (LabelShapeStatisticsImageFilter): principal axes, equivalent-ellipsoid
+        diameters and principal moments. The morphometry primitive of the CellPheno
+        paper (cf. analysis_nis_shape.py)."
+      homepage: "https://github.com/Chrisa142857/Lightsheet_microscopy_image_3D_nuclei_instance_segmentation"
+      licence:
+        - "MIT"
+input:
+  - - meta:
+        type: map
+        description: |
+          Tile meta map, e.g. `[ id:'test_brain_t0x0', brain:'test_brain', ... ]`.
+    - nis_results:
+        type: file
+        description: NIS result tensors for one tile (instance_coordinate/volume/center).
+        pattern: "*_NIScpp_results_*.zip"
+output:
+  morphometry:
+    - - meta:
+          type: map
+          description: Tile meta map.
+      - "*instance_pa*.zip":
+          type: file
+          description: |
+            Per-instance shape features: principal axes (3x3), equivalent-ellipsoid
+            diameters (3), principal moments (3), volume and label.
+          pattern: "*instance_pa*.zip"
+  versions:
+    - "versions.yml":
+        type: file
+        description: File containing software versions.
+        pattern: "versions.yml"
+authors:
+  - "@Chrisa142857"
+maintainers:
+  - "@Chrisa142857"

@@ -8,8 +8,10 @@ process CELLPHENO_BRAINMAP {
         'ghcr.io/chrisa142857/cellpheno-postproc:1.0.0' }"
 
     input:
-    // meta is the BRAIN meta. tile_tars = per-tile tars (grouped); tform = stitch json.
-    tuple val(meta), path(tile_tars), path(tform)
+    // meta is the BRAIN meta. tile_tars = per-tile tars (grouped); tforms = stitch
+    // transform(s): the phase-correlation _tform_refine.json and, optionally, the
+    // point-registration _tform_refine_ptreg.json (used in preference when present).
+    tuple val(meta), path(tile_tars), path(tforms)
 
     output:
     tuple val(meta), path("*.nii.gz"), emit: brainmap
@@ -33,7 +35,7 @@ process CELLPHENO_BRAINMAP {
     # ptag/btag from the last two path components) and place the stitch transform.
     mkdir -p "nis/${ptag}/${btag}" "stitch/${ptag}/${btag}/NIS_tranform"
     for t in *.tar; do tar -xf "\$t" -C "nis/${ptag}/${btag}"; done
-    cp -L ${tform} "stitch/${ptag}/${btag}/NIS_tranform/"
+    cp -L ${tforms} "stitch/${ptag}/${btag}/NIS_tranform/"
 
     cellpheno_brainmap.py \\
         --nis-result-path "nis/${ptag}/${btag}" \\

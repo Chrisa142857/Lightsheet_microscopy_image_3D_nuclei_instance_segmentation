@@ -25,7 +25,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 #   coloc         : torch torchvision pandas (+ data-root config, see notes)
 RUN pip install --no-cache-dir \
         numpy scipy pandas tqdm \
-        nibabel scikit-image pillow matplotlib dask
+        nibabel scikit-image pillow matplotlib seaborn dask SimpleITK
 
 # brainmap_nogui uses torch_scatter.scatter_max for IoU de-duplication. Install the
 # prebuilt wheel matching the base image's torch/CUDA — compiling from source would
