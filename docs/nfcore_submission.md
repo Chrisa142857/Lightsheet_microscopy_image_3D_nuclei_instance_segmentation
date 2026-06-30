@@ -21,7 +21,7 @@ Reference: <https://nf-co.re/docs/contributing/contribute-components>
    gh auth refresh -h github.com -s write:packages
    gh auth token | docker login ghcr.io -u Chrisa142857 --password-stdin
 
-   bash containers/nis/build_and_push.sh ghcr.io/chrisa142857/cellpheno-nis 1.0.0
+   bash containers/nis/build_and_push.sh quay.io/nf-core/cellpheno-nis 1.0.0
    ```
 
    Then make the GHCR package **public**. nf-core membership is NOT required: the
