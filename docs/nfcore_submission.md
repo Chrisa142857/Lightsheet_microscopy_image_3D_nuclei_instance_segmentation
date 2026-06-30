@@ -16,13 +16,18 @@ Reference: <https://nf-co.re/docs/contributing/contribute-components>
    `cpp/build_main_hummer.sh`):
 
    ```bash
-   docker login quay.io                                   # nf-core push access
-   bash containers/nis/build_and_push.sh quay.io/nf-core/cellpheno-nis 1.0.0
+   # Authenticate once (GitHub login covers both the PR and ghcr push):
+   gh auth login
+   gh auth refresh -h github.com -s write:packages
+   gh auth token | docker login ghcr.io -u Chrisa142857 --password-stdin
+
+   bash containers/nis/build_and_push.sh ghcr.io/chrisa142857/cellpheno-nis 1.0.0
    ```
 
-   (The image is large — CUDA base + LibTorch. If you don't have nf-core quay
-   access yet, push to `ghcr.io/chrisa142857/cellpheno-nis` and update the
-   `container` line, or ask the nf-core team to host it.)
+   Then make the GHCR package **public**. nf-core membership is NOT required: the
+   module is hosted on your GHCR and the registry prefix is allowlisted in the PR
+   (same pattern as the merged `scvitools/*` modules on `ghcr.io/scverse`). The
+   image is large — CUDA base + LibTorch.
 
 2. **Add minimal test data** to a branch of
    [nf-core/test-datasets](https://github.com/nf-core/test-datasets) (the
@@ -51,6 +56,10 @@ git checkout -b nis-module
 
 # 2. Copy the module in from this repo (adjust SRC path)
 SRC=/path/to/Lightsheet_microscopy_image_3D_nuclei_instance_segmentation
+# Allowlist your GHCR registry so the container_links prefix check passes
+yq -i '.["container-registry"] += ["ghcr.io/chrisa142857"]' .nf-core.yml 2>/dev/null || \
+  sed -i 's#^\(container-registry:\)#\1\n  - ghcr.io/chrisa142857#' .nf-core.yml
+
 mkdir -p modules/nf-core/cellpheno/nis/tests
 cp "$SRC"/modules/nf-core/cellpheno/nis/main.nf                 modules/nf-core/cellpheno/nis/
 cp "$SRC"/modules/nf-core/cellpheno/nis/meta.yml                modules/nf-core/cellpheno/nis/
@@ -63,7 +72,7 @@ pre-commit run --all-files
 nf-core modules test cellpheno/nis --profile docker   # once the container is published
 
 # 4. Commit, push, open PR against master
-git add modules/nf-core/cellpheno/nis
+git add modules/nf-core/cellpheno/nis .nf-core.yml
 git commit -m "new module: cellpheno/nis"
 git push -u origin nis-module
 gh pr create --repo nf-core/modules --base master \
@@ -98,7 +107,7 @@ no `environment.yml`, an in-script guard that errors under `-profile conda/mamba
 - [x] Follow the naming conventions.
 - [x] Follow the input/output options guidelines.
 - [x] Add a resource `label` (`process_high` + `process_gpu`).
-- [ ] Use BioConda and BioContainers if possible. <!-- N/A: custom CUDA/LibTorch GPU binary, no conda package; ships as a vendor container like parabricks -->
+- [ ] Use BioConda and BioContainers if possible. <!-- N/A: custom CUDA/LibTorch GPU binary, no conda package; ships as a GPU container on ghcr.io/chrisa142857 (registry allowlisted in .nf-core.yml, like ghcr.io/scverse). nf-core may mirror to quay.io/nf-core during review. -->
 - Ensure the test works with Docker / Singularity:
   - [x] `nf-core modules test cellpheno/nis --profile docker` <!-- stub; real GPU test pending test-data -->
   - [x] `nf-core modules test cellpheno/nis --profile singularity`
