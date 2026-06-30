@@ -84,7 +84,7 @@ each tile yields `{brain}_NIScpp_results_*` — the naming the stitch/brain-map 
 Two GPU container images back the pipeline (built/pushed like the nf-core module):
 
 ```bash
-bash containers/nis/build_and_push.sh      ghcr.io/chrisa142857/cellpheno-nis      1.0.0  # C++ NIS binary
+bash containers/nis/build_and_push.sh      quay.io/nf-core/cellpheno-nis      1.0.0  # C++ NIS binary
 bash containers/postproc/build_and_push.sh ghcr.io/chrisa142857/cellpheno-postproc 1.0.0  # Python downstream
 ```
 

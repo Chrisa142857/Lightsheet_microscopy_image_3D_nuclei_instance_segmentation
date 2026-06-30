@@ -34,7 +34,7 @@ produces (verified by linting it side by side). They are not code defects:
    `Unable to connect to container URL`, because the image hasn't been **published**
    yet (and ghcr.io is unreachable from the sandbox). The merged `scvitools/*`
    modules (`ghcr.io/scverse`) show the *same* "unable to connect" here. Resolves
-   once `ghcr.io/chrisa142857/cellpheno-nis:1.0.0` is built, pushed and made public —
+   once `quay.io/nf-core/cellpheno-nis:1.0.0` is built, pushed and made public —
    see [`containers/nis/Dockerfile`](../containers/nis/Dockerfile). No nf-core
    membership needed: host on your public GHCR and add `ghcr.io/chrisa142857` to the
    nf-core/modules `.nf-core.yml` `container-registry` allowlist in the PR (exactly
@@ -105,7 +105,7 @@ Other flags (`--batch_size`, `--chunk_depth`, `--cellprob_threshold`,
 ## Build the container
 
 ```bash
-docker build -f containers/nis/Dockerfile -t ghcr.io/chrisa142857/cellpheno-nis:1.0.0 .
+docker build -f containers/nis/Dockerfile -t quay.io/nf-core/cellpheno-nis:1.0.0 .
 ```
 
 The image compiles `cpp/` against a CUDA build of LibTorch and ships the binary

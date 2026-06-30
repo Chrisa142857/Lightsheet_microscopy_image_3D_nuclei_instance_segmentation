@@ -24,10 +24,10 @@ gh auth login                       # for the fork + PR
 
 You are not an nf-core org member, so push to **your own GHCR** (the proven
 no-membership path — `scvitools/*` ships from `ghcr.io/scverse` the same way).
-The module already references `ghcr.io/chrisa142857/cellpheno-nis:1.0.0`.
+The module already references `quay.io/nf-core/cellpheno-nis:1.0.0`.
 
 ```bash
-bash containers/nis/build_and_push.sh ghcr.io/chrisa142857/cellpheno-nis 1.0.0
+bash containers/nis/build_and_push.sh quay.io/nf-core/cellpheno-nis 1.0.0
 ```
 
 Then make the package **public** so nf-core CI can pull it:
@@ -93,7 +93,7 @@ it into `PR_BODY.md` first (or paste it into the PR on GitHub).
 ## Notes
 
 - **Registry (no nf-core membership needed):** push to your own public
-  `ghcr.io/chrisa142857/cellpheno-nis` and add `ghcr.io/chrisa142857` to the
+  `quay.io/nf-core/cellpheno-nis` and add `ghcr.io/chrisa142857` to the
   nf-core/modules `.nf-core.yml` `container-registry` allowlist in your PR — the
   same pattern as the merged `scvitools/*` (`ghcr.io/scverse`) modules. nf-core
   may later mirror it to `quay.io/nf-core`; that's a trivial one-line change they
