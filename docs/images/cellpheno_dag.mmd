@@ -1,0 +1,61 @@
+flowchart TB
+    subgraph " "
+    v0["channel.empty"]
+    v1["channel.fromPath"]
+    v4["models"]
+    v12["channel.empty"]
+    v26["channel.empty"]
+    v41["channel.empty"]
+    v43["weights"]
+    end
+    subgraph "NIS [NIS]"
+    v5(["NIS_SEGMENT"])
+    v9(["CELLPHENO_COORDTOBBOX"])
+    v14(["CELLPHENO_MORPHOMETRY"])
+    v22(["CELLPHENO_STITCH"])
+    v28(["CELLPHENO_STITCHREFINE"])
+    v37(["CELLPHENO_BRAINMAP"])
+    v44(["CELLPHENO_COLOC"])
+    v2(( ))
+    v7(( ))
+    v18(( ))
+    end
+    subgraph " "
+    v6[" "]
+    v13["ch_morphometry"]
+    v15["morphometry"]
+    v27["ch_ptreg"]
+    v38["brainmap"]
+    v42["ch_coloc"]
+    v45["coloc"]
+    v48["versions"]
+    end
+    v0 --> v7
+    v1 --> v2
+    v4 --> v5
+    v2 --> v5
+    v5 --> v9
+    v5 --> v6
+    v5 --> v14
+    v5 --> v7
+    v9 --> v7
+    v9 --> v18
+    v12 --> v13
+    v14 --> v15
+    v14 --> v7
+    v18 --> v22
+    v22 --> v7
+    v22 --> v18
+    v26 --> v27
+    v18 --> v28
+    v28 --> v7
+    v28 --> v18
+    v18 --> v37
+    v37 --> v38
+    v37 --> v7
+    v41 --> v42
+    v43 --> v44
+    v18 --> v44
+    v44 --> v45
+    v44 --> v7
+    v7 --> v48

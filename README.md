@@ -22,34 +22,67 @@ explore interactively in **[cellpheno-viewer](https://cellpheno-viewer.ziquanw.c
 ## Pipeline summary
 
 ```mermaid
-flowchart LR
-    IN["Light-sheet tiles<br/>2D OME-TIFF"]:::io --> NIS
-
-    subgraph tile["per tile · GPU"]
-      NIS["<b>1. NIS segmentation</b><br/>2D U-Net → 2D→3D flow →<br/>flow-following → GNN gap-stitch"]:::gpu
-      NIS --> BBOX["2. coord → bbox"]:::gpu
-      NIS -. optional .-> MORPH["morphometry<br/>ellipsoid (SimpleITK)"]:::opt
+flowchart TB
+    subgraph " "
+    v0["channel.empty"]
+    v1["channel.fromPath"]
+    v4["models"]
+    v12["channel.empty"]
+    v26["channel.empty"]
+    v41["channel.empty"]
+    v43["weights"]
     end
-
-    BBOX --> GRP{{group by brain}}
-
-    subgraph brain["per brain"]
-      GRP --> STITCH["3. tile stitch<br/>phase correlation"]:::cpu
-      STITCH -. optional .-> REFINE["stitch refine<br/>point registration"]:::opt
-      STITCH --> MAP["4. whole-brain map<br/>25 µm NIfTI (density / volume)"]:::gpu
-      REFINE --> MAP
-      GRP -. optional .-> COLOC["co-localization<br/>ResNet classifier"]:::opt
+    subgraph "NIS [NIS]"
+    v5(["NIS_SEGMENT"])
+    v9(["CELLPHENO_COORDTOBBOX"])
+    v14(["CELLPHENO_MORPHOMETRY"])
+    v22(["CELLPHENO_STITCH"])
+    v28(["CELLPHENO_STITCHREFINE"])
+    v37(["CELLPHENO_BRAINMAP"])
+    v44(["CELLPHENO_COLOC"])
+    v2(( ))
+    v7(( ))
+    v18(( ))
     end
-
-    MAP --> VIEW(["cellpheno-viewer<br/>brain map + multi-scale zoom QC"]):::io
-    MORPH --> OUT[("results/")]:::io
-    COLOC --> OUT
-    MAP --> OUT
-
-    classDef gpu fill:#e7f0ff,stroke:#3b6fb6,color:#13315c;
-    classDef cpu fill:#eef7ee,stroke:#4a934a,color:#1d401d;
-    classDef opt fill:#fff6e6,stroke:#c98a17,color:#5c3b08,stroke-dasharray:4 3;
-    classDef io  fill:#f3eefc,stroke:#7a4bbf,color:#2e1a52;
+    subgraph " "
+    v6[" "]
+    v13["ch_morphometry"]
+    v15["morphometry"]
+    v27["ch_ptreg"]
+    v38["brainmap"]
+    v42["ch_coloc"]
+    v45["coloc"]
+    v48["versions"]
+    end
+    v0 --> v7
+    v1 --> v2
+    v4 --> v5
+    v2 --> v5
+    v5 --> v9
+    v5 --> v6
+    v5 --> v14
+    v5 --> v7
+    v9 --> v7
+    v9 --> v18
+    v12 --> v13
+    v14 --> v15
+    v14 --> v7
+    v18 --> v22
+    v22 --> v7
+    v22 --> v18
+    v26 --> v27
+    v18 --> v28
+    v28 --> v7
+    v28 --> v18
+    v18 --> v37
+    v37 --> v38
+    v37 --> v7
+    v41 --> v42
+    v43 --> v44
+    v18 --> v44
+    v44 --> v45
+    v44 --> v7
+    v7 --> v48
 ```
 
 | # | Step | Module | Method |
