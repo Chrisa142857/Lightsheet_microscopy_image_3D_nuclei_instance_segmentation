@@ -1,5 +1,5 @@
 {% set name = "cellpheno-nis" %}
-{% set version = "1.0.0" %}
+{% set version = "1.0.1" %}
 
 package:
   name: {{ name }}
@@ -7,7 +7,7 @@ package:
 
 source:
   url: https://github.com/Chrisa142857/Lightsheet_microscopy_image_3D_nuclei_instance_segmentation/archive/refs/tags/v{{ version }}.tar.gz
-  sha256: 2ed365165b1c762a877a9c2323fce0bddf0f7421cbef6f2cd1ce02b8348b3da3
+  sha256: 3dd18c3acb5f69064c74480edc07068c200e4645582693eee02a3db2a5765e86
 
 build:
   number: 0

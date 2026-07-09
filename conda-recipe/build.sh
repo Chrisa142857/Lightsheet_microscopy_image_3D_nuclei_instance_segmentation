@@ -9,8 +9,7 @@ cmake .. \
     -DCMAKE_BUILD_TYPE=Release \
     -DCMAKE_PREFIX_PATH="${PREFIX}" \
     -DCMAKE_INSTALL_PREFIX="${PREFIX}" \
-    -DCMAKE_CUDA_COMPILER="${CUDA_HOME:-${PREFIX}}/bin/nvcc" \
-    -DCMAKE_POLICY_VERSION_MINIMUM=3.5
+    -DCMAKE_CUDA_COMPILER="${CUDA_HOME:-${PREFIX}}/bin/nvcc"
 cmake --build . -j "${CPU_COUNT:-2}"
 
 # Upstream names the binary `main`; install under an unambiguous name so it can
