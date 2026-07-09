@@ -10,6 +10,7 @@ include { CELLPHENO_MORPHOMETRY } from '../modules/local/cellpheno/morphometry/m
 include { CELLPHENO_STITCH       } from '../modules/local/cellpheno/stitch/main'
 include { CELLPHENO_STITCHREFINE } from '../modules/local/cellpheno/stitchrefine/main'
 include { CELLPHENO_BRAINMAP     } from '../modules/local/cellpheno/brainmap/main'
+include { CELLPHENO_QCVIEWER      } from '../modules/local/cellpheno/qcviewer/main'
 include { CELLPHENO_COLOC       } from '../modules/local/cellpheno/coloc/main'
 
 /*
@@ -138,6 +139,15 @@ workflow NIS {
         .map { id, bmeta, tars, tforms -> [ bmeta, tars, tforms ] }
     CELLPHENO_BRAINMAP ( ch_brainmap_in )
     ch_versions = ch_versions.mix(CELLPHENO_BRAINMAP.out.versions.first())
+    //
+    // 4b) (Optional) emit a launch bundle for the cellpheno-viewer web QC app.
+    //
+    ch_qcviewer = Channel.empty()
+    if (params.run_qcviewer) {
+        CELLPHENO_QCVIEWER ( CELLPHENO_BRAINMAP.out.brainmap.map { meta, f -> meta.id }.collect() )
+        ch_qcviewer = CELLPHENO_QCVIEWER.out.bundle
+    }
+
 
     //
     // 5) (Optional) NIS-guided multi-channel co-localization per brain.
@@ -157,6 +167,7 @@ workflow NIS {
     tform    = CELLPHENO_STITCH.out.tform
     tform_ptreg = ch_ptreg
     brainmap = CELLPHENO_BRAINMAP.out.brainmap
+    qcviewer = ch_qcviewer
     coloc    = ch_coloc
     versions = ch_versions
 }

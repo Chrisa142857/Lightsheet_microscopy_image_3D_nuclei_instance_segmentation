@@ -1,0 +1,28 @@
+name: "cellpheno_qcviewer"
+description: Emit a launch bundle for the cellpheno-viewer web QC app (on-demand zoom backend)
+keywords:
+  - visualization
+  - quality control
+  - web app
+  - whole brain
+tools:
+  - "cellpheno_qcviewer":
+      description: "Writes a docker-compose + README to launch the nis_ondemand_viewer
+        FastAPI backend against this run's NIS results, for visual QC in the
+        cellpheno-viewer SPA (brain map + multi-scale zoom, global to local)."
+      homepage: "https://github.com/Chrisa142857/cellpheno-viewer"
+      licence: ["MIT"]
+input:
+  - - brains:
+        type: list
+        description: Collected brain IDs from the run (run-level trigger).
+output:
+  bundle:
+    - "qcviewer/*":
+        type: file
+        description: docker-compose.yml + README + versions.yml to launch the QC viewer.
+        pattern: "qcviewer/*"
+authors:
+  - "@Chrisa142857"
+maintainers:
+  - "@Chrisa142857"
