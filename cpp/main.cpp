@@ -274,12 +274,20 @@ int main(int argc, const char* argv[]) {
   torch::jit::script::Module flow_3DtoSeed;
   // get_tile_param = torch::jit::load("/ram/USERS/ziquanw/Lightsheet_microscopy_image_3D_nuclei_instance_segmentation/downloads/resource/get_model_tileparam_cpu.pt");
   // preproc = torch::jit::load("/ram/USERS/ziquanw/Lightsheet_microscopy_image_3D_nuclei_instance_segmentation/downloads/resource/preproc_img1xLyxLx_"+std::string(argv[3])+".pt");
-  nis_unet = torch::jit::load(program.get<std::string>("--model_root")+"/nis_unet_cpu.pt");
-  grad_2d_to_3d = torch::jit::load(program.get<std::string>("--model_root")+"/grad_2Dto3D_"+device+".pt");
+  // Load the flow/GNN modules with map_location = the requested device so the binary
+  // runs on ANY GPU index (cuda:1, cuda:2, ...) from a single, device-independent model
+  // set. These modules were previously loaded from device-suffixed files
+  // (grad_2Dto3D_<device>.pt, gnn_*_<device>.pt), which pinned the tool to the exact
+  // device they were traced on -- a plain module->to(device) at use time does not
+  // relocate device-baked graph constants, but remapping storages at load does.
+  std::string mroot = program.get<std::string>("--model_root");
+  torch::Device model_device(device);
+  nis_unet = torch::jit::load(mroot+"/nis_unet_cpu.pt");
+  grad_2d_to_3d = torch::jit::load(mroot+"/grad_2Dto3D.pt", model_device);
   // interpolater = torch::jit::load("/ram/USERS/ziquanw/Lightsheet_microscopy_image_3D_nuclei_instance_segmentation/downloads/resource/interpolate_ratio_1.6x1x1.pt");
-  gnn_message_passing = torch::jit::load(program.get<std::string>("--model_root")+"/gnn_message_passing_"+device+".pt");
-  gnn_classifier = torch::jit::load(program.get<std::string>("--model_root")+"/gnn_classifier_"+device+".pt");
-  flow_3DtoSeed = torch::jit::load(program.get<std::string>("--model_root")+"/flow_3DtoSeed.pt");
+  gnn_message_passing = torch::jit::load(mroot+"/gnn_message_passing.pt", model_device);
+  gnn_classifier = torch::jit::load(mroot+"/gnn_classifier.pt", model_device);
+  flow_3DtoSeed = torch::jit::load(mroot+"/flow_3DtoSeed.pt");
   // std::string pair_tag = "pair15";
   // std::string brain_tag = "L73D766P4";
   std::string fn_tag = program.get<std::string>("--filename_tag");

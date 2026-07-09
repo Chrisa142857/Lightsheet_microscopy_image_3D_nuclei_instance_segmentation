@@ -19,11 +19,11 @@ IMAGE="${1:-quay.io/nf-core/cellpheno-nis}"
 VERSION="${2:-1.0.0}"
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 
-# LibTorch CUDA build. The repo's cpp/README.md downloads LibTorch from
-# download.pytorch.org; cpp/build_main_hummer.sh targets CUDA 12.8 (cu128).
-# The Dockerfile defaults to the matching cu128 LibTorch; override via build-arg
-# if you need a different CUDA/LibTorch version.
-LIBTORCH_URL="${LIBTORCH_URL:-https://download.pytorch.org/libtorch/cu128/libtorch-cxx11-abi-shared-with-deps-2.7.0%2Bcu128.zip}"
+# LibTorch CUDA build. The Dockerfile targets CUDA 12.1 (cu121) for broad driver
+# compatibility (runs on driver >= 530; covers sm_50..sm_90 incl. Ada sm_89) and to
+# match the cellpheno-postproc container. Override via build-arg for a different
+# CUDA/LibTorch version (e.g. cu128 for Blackwell sm_100/120).
+LIBTORCH_URL="${LIBTORCH_URL:-https://download.pytorch.org/libtorch/cu121/libtorch-cxx11-abi-shared-with-deps-2.5.1%2Bcu121.zip}"
 
 echo ">> Building ${IMAGE}:${VERSION} (LibTorch: ${LIBTORCH_URL})"
 docker build \

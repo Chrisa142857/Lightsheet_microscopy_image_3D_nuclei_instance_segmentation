@@ -10,15 +10,23 @@
 # `docker run --gpus all ...` or, via Nextflow, `docker.runOptions = '--gpus all'`
 # / `singularity.runOptions = '--nv'`.
 
-ARG CUDA_VERSION=12.8.0
+# CUDA 12.1 (not 12.8) for driver compatibility: a 12.1 image runs on any NVIDIA driver
+# >= 530 (vs. >= ~570 for 12.8), covering far more clusters/CI runners while still
+# supporting every GPU this tool targets. The binary has no custom .cu kernels (cpp/
+# CMakeLists compiles only .cpp), so GPU-arch coverage comes from LibTorch's prebuilt fat
+# binary: cu121 spans sm_50..sm_90 (Maxwell->Hopper, incl. Ada sm_89). Matches the
+# cellpheno-postproc container (torch 2.5.1+cu121).
+ARG CUDA_VERSION=12.1.1
 ARG UBUNTU_VERSION=22.04
 
 # ---------------------------------------------------------------------------
 # Stage 1: build the NIS binary
 # ---------------------------------------------------------------------------
-FROM nvidia/cuda:${CUDA_VERSION}-cudnn-devel-ubuntu${UBUNTU_VERSION} AS build
+# Base without cuDNN: LibTorch bundles its own cuDNN in libtorch/lib (first on
+# LD_LIBRARY_PATH), so we avoid pinning a base cuDNN tag.
+FROM nvidia/cuda:${CUDA_VERSION}-devel-ubuntu${UBUNTU_VERSION} AS build
 
-ARG LIBTORCH_URL=https://download.pytorch.org/libtorch/cu128/libtorch-cxx11-abi-shared-with-deps-2.7.0%2Bcu128.zip
+ARG LIBTORCH_URL=https://download.pytorch.org/libtorch/cu121/libtorch-cxx11-abi-shared-with-deps-2.5.1%2Bcu121.zip
 
 ENV DEBIAN_FRONTEND=noninteractive
 
@@ -47,7 +55,7 @@ RUN cmake -DCMAKE_PREFIX_PATH=/opt/libtorch -DCMAKE_BUILD_TYPE=Release .. \
 # ---------------------------------------------------------------------------
 # Stage 2: slim runtime image
 # ---------------------------------------------------------------------------
-FROM nvidia/cuda:${CUDA_VERSION}-cudnn-runtime-ubuntu${UBUNTU_VERSION} AS runtime
+FROM nvidia/cuda:${CUDA_VERSION}-runtime-ubuntu${UBUNTU_VERSION} AS runtime
 
 ENV DEBIAN_FRONTEND=noninteractive
 
