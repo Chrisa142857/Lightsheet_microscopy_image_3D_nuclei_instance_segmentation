@@ -1,7 +1,8 @@
-cmake_minimum_required(VERSION 3.0 FATAL_ERROR)
+cmake_minimum_required(VERSION 3.18)
 project(main)
-set(TORCH_LIBRARIES /ram/USERS/ziquanw/libs/pytorch-install)
 
+# LibTorch and OpenCV are located via CMAKE_PREFIX_PATH (host build: /opt/libtorch;
+# conda build: $CONDA_PREFIX). find_package(Torch) sets TORCH_LIBRARIES itself.
 find_package(Torch REQUIRED)
 find_package( OpenCV REQUIRED )
 
