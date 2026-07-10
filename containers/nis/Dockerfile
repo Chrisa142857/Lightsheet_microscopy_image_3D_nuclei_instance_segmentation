@@ -69,11 +69,12 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 # LibTorch shared libraries + the compiled binary.
 COPY --from=build /opt/libtorch /opt/libtorch
-COPY --from=build /src/cpp/build/main /usr/local/bin/main
+# Install under a meaningful CLI name (matches the bioconda package cellpheno-nis).
+COPY --from=build /src/cpp/build/main /usr/local/bin/cellpheno-nis
 
-# Single authoritative version source. The nf-core module reports the NIS version
-# via `eval("cat /usr/local/share/cellpheno-nis/VERSION")`, so the container tag
-# (ARG) and the reported version stay in lockstep. Bump together on release.
+# Single authoritative version source. The nf-core module reads the NIS version
+# from this file into versions.yml, so the container tag (ARG) and the reported
+# version stay in lockstep. Bump together on release.
 ARG NIS_VERSION=1.0.0
 RUN mkdir -p /usr/local/share/cellpheno-nis && echo "${NIS_VERSION}" > /usr/local/share/cellpheno-nis/VERSION
 
@@ -86,4 +87,4 @@ LABEL org.opencontainers.image.title="lightsheet-nis" \
       org.opencontainers.image.version="1.0.0"
 
 ENTRYPOINT []
-CMD ["main", "--help"]
+CMD ["cellpheno-nis", "--help"]
