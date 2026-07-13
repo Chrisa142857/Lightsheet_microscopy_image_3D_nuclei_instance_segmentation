@@ -186,3 +186,11 @@ results/
 .nf-test.log
 *.nf.test.snap.actual
 nxf-tmp.*
+
+# Internal working / planning notes (Claude-assisted; not for the public repo)
+docs/manuscript-plan.md
+docs/experiment-log.md
+docs/pi-reply-draft.md
+docs/nfcore_submission.md
+docs/nis_conda_feasibility.md
+docs/nfcore_pipeline_proposal.md
