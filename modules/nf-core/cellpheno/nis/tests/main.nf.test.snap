@@ -28,8 +28,8 @@
                 "2": [
                     [
                         "CELLPHENO_NIS",
-                        "cellpheno_nis",
-                        "1.0.0"
+                        "cellpheno-nis",
+                        "1.0.3"
                     ]
                 ],
                 "nis": [
@@ -58,16 +58,16 @@
                 "versions_cellpheno_nis": [
                     [
                         "CELLPHENO_NIS",
-                        "cellpheno_nis",
-                        "1.0.0"
+                        "cellpheno-nis",
+                        "1.0.3"
                     ]
                 ]
             }
         ],
-        "timestamp": "2026-06-26T18:29:39.774501839",
+        "timestamp": "2026-07-14T08:14:55.8737599",
         "meta": {
             "nf-test": "0.9.5",
-            "nextflow": "24.10.5"
+            "nextflow": "26.04.4"
         }
     }
 }

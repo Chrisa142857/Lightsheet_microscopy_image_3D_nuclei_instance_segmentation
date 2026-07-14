@@ -33,9 +33,14 @@ RUN pip install --no-cache-dir \
 RUN pip install --no-cache-dir torch-scatter \
         -f https://data.pyg.org/whl/torch-2.5.1+cu121.html
 
-# Bundle the repository (code only; see .dockerignore) so wrappers can import it.
+# Bundle only the code the CLI wrappers import — root scripts + image_stitch/, coloc/,
+# bin/ — not the C++ source (cpp/), training code, Nextflow assets, etc. Slims the image
+# and speeds the build vs. copying the whole repo.
 ENV CELLPHENO_HOME=/opt/cellpheno
-COPY . ${CELLPHENO_HOME}
+COPY *.py ${CELLPHENO_HOME}/
+COPY bin ${CELLPHENO_HOME}/bin
+COPY image_stitch ${CELLPHENO_HOME}/image_stitch
+COPY coloc ${CELLPHENO_HOME}/coloc
 ENV PYTHONPATH=${CELLPHENO_HOME}:${CELLPHENO_HOME}/image_stitch:${CELLPHENO_HOME}/coloc
 
 # Put the CLI wrappers on PATH.

@@ -71,10 +71,10 @@ output:
     - - "${task.process}":
           type: string
           description: The name of the process
-      - "cellpheno_nis":
+      - "cellpheno-nis":
           type: string
           description: The name of the tool
-      - "cat /usr/local/share/cellpheno-nis/VERSION":
+      - "cellpheno-nis --version":
           type: eval
           description: The expression to obtain the version of the tool
 topics:
@@ -82,10 +82,10 @@ topics:
     - - "${task.process}":
           type: string
           description: The name of the process
-      - "cellpheno_nis":
+      - "cellpheno-nis":
           type: string
           description: The name of the tool
-      - "cat /usr/local/share/cellpheno-nis/VERSION":
+      - "cellpheno-nis --version":
           type: eval
           description: The expression to obtain the version of the tool
 authors:

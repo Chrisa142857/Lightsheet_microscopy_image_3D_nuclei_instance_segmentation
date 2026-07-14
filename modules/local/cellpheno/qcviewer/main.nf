@@ -28,7 +28,7 @@ process CELLPHENO_QCVIEWER {
     """
     mkdir -p qcviewer
 
-    cat > qcviewer/docker-compose.yml <<YML
+    cat > qcviewer/docker-compose.yml <<'YML'
     # Launch: CELLPHENO_RESULTS=/abs/path/to/<outdir> docker compose up -d
     services:
       nis-ondemand-viewer:
@@ -44,25 +44,23 @@ process CELLPHENO_QCVIEWER {
         command: uvicorn nis_ondemand_viewer.app:app --host 0.0.0.0 --port 8090
     YML
 
-    cat > qcviewer/README.md <<MD
+    cat > qcviewer/README.md <<'MD'
     # Visual QC viewer for this run
 
     Brains in this run: ${brainList}
 
-    The [cellpheno-viewer](${frontend}) is a static niivue SPA backed by the
-    \`nis_ondemand_viewer\` service, which serves brain maps + on-demand multi-scale
-    zoom cubes **straight from the NIS results** (no precompute).
+    The cellpheno-viewer (${frontend}) is a static niivue SPA backed by the
+    nis_ondemand_viewer service, which serves brain maps + on-demand multi-scale
+    zoom cubes straight from the NIS results (no precompute).
 
-    1. Build/pull the backend image \`${img}\` (from the cellpheno-viewer repo,
-       \`nis_ondemand_viewer/deploy/Dockerfile\`).
-    2. From this directory:
-       \`\`\`
+    1. Build/pull the backend image ${img}
+       (from the cellpheno-viewer repo: nis_ondemand_viewer/deploy/Dockerfile).
+    2. From this directory, launch the backend:
        CELLPHENO_RESULTS=\$(realpath ${params.outdir}) docker compose up -d
-       \`\`\`
-    3. Open ${frontend} -> **Connect to server** -> \`http://localhost:8090\`.
+    3. Open ${frontend} then "Connect to server" -> http://localhost:8090
 
-    Note: the backend expects NIS results under \`<NIS_ROOT>/<pair>/<brain>/<tile>/\`.
-    If your \`results/nis\` layout differs, adjust the env vars / mount above.
+    Note: the backend expects NIS results under <NIS_ROOT>/<pair>/<brain>/<tile>/.
+    If your results/nis layout differs, adjust the env vars / mount above.
     MD
 
     cat <<-END_VERSIONS > qcviewer/versions.yml

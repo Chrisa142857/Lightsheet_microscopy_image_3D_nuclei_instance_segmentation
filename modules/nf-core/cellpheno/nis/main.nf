@@ -8,7 +8,7 @@ process CELLPHENO_NIS {
     // It has no Conda/Bioconda package and requires a CUDA runtime, so it is
     // distributed only as a dedicated GPU container image (cf. the parabricks and
     // numorph/3dunet modules, which likewise ship a vendor GPU image with no conda).
-    container "quay.io/nf-core/cellpheno-nis:1.0.0"
+    container "quay.io/nf-core/cellpheno-nis:1.0.3"
 
     input:
     tuple val(meta), path(tile_dir)
@@ -17,7 +17,7 @@ process CELLPHENO_NIS {
     output:
     tuple val(meta), path("*_NIScpp_results_*.zip"), emit: nis
     tuple val(meta), path("*_remap.zip")           , emit: remap, optional: true
-    tuple val("${task.process}"), val('cellpheno_nis'), eval("cat /usr/local/share/cellpheno-nis/VERSION"), topic: versions, emit: versions_cellpheno_nis
+    tuple val("${task.process}"), val('cellpheno-nis'), eval("cellpheno-nis --version"), topic: versions, emit: versions_cellpheno_nis
 
     when:
     task.ext.when == null || task.ext.when
@@ -33,7 +33,7 @@ process CELLPHENO_NIS {
     // The GPU is selected by the executor (e.g. CUDA_VISIBLE_DEVICES); NIS defaults
     // to `cuda:0`. Override with `--device cuda:N` via `task.ext.args` if needed.
     """
-    main \\
+    cellpheno-nis \\
         --model_root ${models} \\
         --data_root ${tile_dir} \\
         --save_root . \\
