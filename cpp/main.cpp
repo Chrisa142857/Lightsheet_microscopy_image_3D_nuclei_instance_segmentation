@@ -14,6 +14,8 @@
 
 #include "argparser.hpp"
 
+#define CELLPHENO_NIS_VERSION "1.0.3"
+
 void save_tensor(torch::Tensor tensor, std::string fn){
   print_with_time("Save tensor as .zip: ");
   print_size(tensor);
@@ -177,6 +179,15 @@ std::vector<torch::Tensor> stitch_process(
 }
 
 int main(int argc, const char* argv[]) {
+  // Print the tool version and exit early, before any LibTorch/CUDA init, so
+  // `cellpheno-nis --version` is a lightweight, standard version query.
+  for (int i = 1; i < argc; ++i) {
+    if (std::string(argv[i]) == "--version") {
+      std::cout << CELLPHENO_NIS_VERSION << std::endl;
+      return 0;
+    }
+  }
+
   std::cout << "LibTorch version: "
     << TORCH_VERSION_MAJOR << "."
     << TORCH_VERSION_MINOR << "."
